@@ -19,6 +19,23 @@ export class Bet {
     this._status = BetStatus.PENDING_DEBIT;
   }
 
+  /**
+   * Reconstructs a Bet from persisted state (e.g. a database row).
+   * Use only in repository mappers — normal construction always starts at
+   * PENDING_DEBIT. Crucially, VOIDED_COMPENSATED is restored here, which
+   * is what makes the idempotency guard survive a process restart.
+   */
+  static rehydrate(
+    id: string,
+    playerId: string,
+    amount: Money,
+    status: BetStatus,
+  ): Bet {
+    const bet = new Bet(id, playerId, amount);
+    bet._status = status;
+    return bet;
+  }
+
   get id(): string {
     return this._id;
   }
@@ -53,6 +70,19 @@ export class Bet {
 
   void(): void {
     this.transitionTo(BetStatus.VOIDED);
+  }
+
+  /**
+   * Transitions the bet to VOIDED_COMPENSATED, recording that the compensating
+   * CreditWalletCommand has been dispatched via the outbox.
+   *
+   * Because VOIDED_COMPENSATED is a first-class BetStatus value (not a separate
+   * boolean), it is automatically persisted by any mapper that stores the status
+   * column, and automatically restored by Bet.rehydrate(). This is what prevents
+   * a duplicate refund after a process restart.
+   */
+  issueCompensation(): void {
+    this.transitionTo(BetStatus.VOIDED_COMPENSATED);
   }
 
   private transitionTo(next: BetStatus): void {

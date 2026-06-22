@@ -108,4 +108,43 @@ describe("BetStatus transitions", () => {
       expect(() => bet.void()).toThrow(InvalidBetStateError);
     });
   });
+
+  describe("VOIDED_COMPENSATED state", () => {
+    it("VOIDED → VOIDED_COMPENSATED via issueCompensation()", () => {
+      const bet = makeBet();
+      bet.void();
+      bet.issueCompensation();
+      expect(bet.status).toBe(BetStatus.VOIDED_COMPENSATED);
+    });
+
+    it("rejects VOIDED_COMPENSATED → any further transition (terminal state)", () => {
+      const bet = makeBet();
+      bet.void();
+      bet.issueCompensation();
+      expect(() => bet.confirm()).toThrow(InvalidBetStateError);
+      expect(() => bet.failDebit()).toThrow(InvalidBetStateError);
+      expect(() => bet.void()).toThrow(InvalidBetStateError);
+      expect(() => bet.issueCompensation()).toThrow(InvalidBetStateError);
+    });
+
+    it("rejects issueCompensation() when bet is not VOIDED", () => {
+      const pending = makeBet();
+      expect(() => pending.issueCompensation()).toThrow(InvalidBetStateError);
+
+      const confirmed = makeBet();
+      confirmed.confirm();
+      expect(() => confirmed.issueCompensation()).toThrow(InvalidBetStateError);
+    });
+
+    it("Bet.rehydrate() restores VOIDED_COMPENSATED status correctly", () => {
+      const bet = Bet.rehydrate("b", "p", Money.ofCents(100n), BetStatus.VOIDED_COMPENSATED);
+      expect(bet.status).toBe(BetStatus.VOIDED_COMPENSATED);
+    });
+
+    it("rehydrated VOIDED_COMPENSATED bet is terminal: no further transitions", () => {
+      const bet = Bet.rehydrate("b", "p", Money.ofCents(100n), BetStatus.VOIDED_COMPENSATED);
+      expect(() => bet.confirm()).toThrow(InvalidBetStateError);
+      expect(() => bet.issueCompensation()).toThrow(InvalidBetStateError);
+    });
+  });
 });

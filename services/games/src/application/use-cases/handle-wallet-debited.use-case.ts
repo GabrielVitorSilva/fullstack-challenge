@@ -1,25 +1,30 @@
 import { buildCreditWalletCommand, type WalletDebitedEvent } from "@crash/contracts";
 import { BetStatus } from "../../domain/bet-status";
 import { BetNotFoundError } from "../../domain/errors/bet-not-found.error";
-import { IEventPublisher } from "../../domain/ports/event-publisher.port";
 import { IRoundRepository } from "../../domain/ports/round-repository.port";
+import { IOutbox } from "../ports/outbox.port";
 
 /**
- * Reacts to WalletDebitedEvent: marks the pending bet as CONFIRMED,
- * meaning the player's funds are reserved and the bet is active.
+ * Reacts to WalletDebitedEvent: marks the pending bet as CONFIRMED.
  *
- * Late-arrival guard: if the round crashed or was cancelled before this event
- * arrived, the bet is VOIDED. In that case we cannot confirm the bet, and we
- * must issue a compensating CreditWalletCommand to refund the player's money.
+ * Idempotency guards (all survive process restarts because they rely on
+ * BetStatus, which is persisted as part of the normal aggregate snapshot):
  *
- * Note: the compensating credit is published best-effort (no outbox for
- * events that don't accompany a round-state change). Idempotent retry is safe
- * because a VOIDED bet never transitions further.
+ *   CONFIRMED          — bet was already confirmed; no-op on duplicate event.
+ *   VOIDED_COMPENSATED — compensating credit was already dispatched and the
+ *                        status was persisted via the outbox. No-op even after
+ *                        a process restart + broker replay.
+ *
+ * Late-arrival path:
+ *   VOIDED — round ended (crash / cancel) while the debit was in-flight.
+ *            Call issueCompensation() to transition to VOIDED_COMPENSATED,
+ *            then emit the CreditWalletCommand via the outbox so that the
+ *            status update and the outbound message are written atomically.
  */
 export class HandleWalletDebitedUseCase {
   constructor(
     private readonly rounds: IRoundRepository,
-    private readonly publisher: IEventPublisher,
+    private readonly outbox: IOutbox,
   ) {}
 
   async execute(event: WalletDebitedEvent): Promise<void> {
@@ -29,15 +34,22 @@ export class HandleWalletDebitedUseCase {
     const bet = round.findBet(event.betId);
     if (!bet) throw new BetNotFoundError(event.betId);
 
+    // Duplicate happy-path event — no-op
+    if (bet.status === BetStatus.CONFIRMED) return;
+
+    // Duplicate late-arrival event (including after process restart) — no-op
+    if (bet.status === BetStatus.VOIDED_COMPENSATED) return;
+
     if (bet.status === BetStatus.VOIDED) {
-      await this.publisher.publish(
+      bet.issueCompensation(); // VOIDED → VOIDED_COMPENSATED
+      await this.outbox.saveAndEmit(round, [
         buildCreditWalletCommand(
           event.betId,
           event.roundId,
           event.playerId,
           BigInt(event.amountCents),
         ),
-      );
+      ]);
       return;
     }
 

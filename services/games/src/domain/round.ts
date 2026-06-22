@@ -22,6 +22,29 @@ export class Round {
     this._status = RoundStatus.BETTING;
   }
 
+  /**
+   * Reconstructs a Round from persisted state (e.g. a database row with its
+   * associated bet rows). Use only in repository mappers.
+   *
+   * Bets should be built with Bet.rehydrate() so that statuses such as
+   * VOIDED_COMPENSATED are correctly restored. This is the boundary that makes
+   * idempotency survive process restarts.
+   */
+  static rehydrate(
+    id: string,
+    status: RoundStatus,
+    bets: readonly Bet[],
+    seeds?: RoundSeeds,
+    crashPoint?: CrashPoint,
+  ): Round {
+    const round = new Round(id, seeds, crashPoint);
+    round._status = status;
+    for (const bet of bets) {
+      round._bets.push(bet);
+    }
+    return round;
+  }
+
   get id(): string {
     return this._id;
   }
