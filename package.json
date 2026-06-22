@@ -3,8 +3,7 @@
   "private": true,
   "workspaces": [
     "services/*",
-    "packages/*",
-    "frontend"
+    "packages/*"
   ],
   "scripts": {
     "docker:up": "docker compose up",
