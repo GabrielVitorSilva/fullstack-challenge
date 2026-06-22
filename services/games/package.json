@@ -9,6 +9,7 @@
     "test:e2e": "bun test tests/e2e"
   },
   "dependencies": {
+    "@crash/contracts": "workspace:*",
     "@nestjs/common": "^11.1.17",
     "@nestjs/core": "^11.1.17",
     "@nestjs/platform-express": "^11.1.17",

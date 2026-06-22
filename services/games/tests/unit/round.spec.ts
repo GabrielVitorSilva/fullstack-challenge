@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { Bet } from "../../src/domain/bet";
+import { BetStatus } from "../../src/domain/bet-status";
 import { BettingClosedError } from "../../src/domain/errors/betting-closed.error";
 import { DuplicateBetError } from "../../src/domain/errors/duplicate-bet.error";
 import { InvalidStateTransitionError } from "../../src/domain/errors/invalid-state-transition.error";
@@ -147,6 +148,45 @@ describe("Round", () => {
       // Pushing to the returned array must not mutate Round state
       bets.push(makeBet("intruder"));
       expect(round.bets).toHaveLength(0);
+    });
+  });
+
+  describe("late-event safety: PENDING_DEBIT bets on round termination", () => {
+    it("crash() voids a PENDING_DEBIT bet so it cannot be confirmed later", () => {
+      const round = makeRound();
+      round.placeBet(makeBet("p1"));
+      round.start();
+      round.crash();
+      expect(round.bets[0].status).toBe(BetStatus.VOIDED);
+    });
+
+    it("crash() marks CONFIRMED bets as LOST and PENDING_DEBIT bets as VOIDED", () => {
+      const round = makeRound();
+      const pendingBet = makeBet("p1");
+      const confirmedBet = makeBet("p2");
+      round.placeBet(pendingBet);
+      round.placeBet(confirmedBet);
+      confirmedBet.confirm();
+      round.start();
+      round.crash();
+      expect(pendingBet.status).toBe(BetStatus.VOIDED);
+      expect(confirmedBet.status).toBe(BetStatus.LOST);
+    });
+
+    it("cancel() voids a PENDING_DEBIT bet", () => {
+      const round = makeRound();
+      round.placeBet(makeBet("p1"));
+      round.cancel();
+      expect(round.bets[0].status).toBe(BetStatus.VOIDED);
+    });
+
+    it("cancel() leaves already-terminal bets unchanged", () => {
+      const round = makeRound();
+      const bet = makeBet("p1");
+      round.placeBet(bet);
+      bet.failDebit();
+      round.cancel();
+      expect(bet.status).toBe(BetStatus.DEBIT_FAILED);
     });
   });
 });
