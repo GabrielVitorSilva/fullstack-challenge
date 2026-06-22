@@ -5,13 +5,20 @@ import { BettingClosedError } from "./errors/betting-closed.error";
 import { CashoutNotAllowedError } from "./errors/cashout-not-allowed.error";
 import { DuplicateBetError } from "./errors/duplicate-bet.error";
 import { InvalidStateTransitionError } from "./errors/invalid-state-transition.error";
+import { CrashPoint } from "./provably-fair/crash-point";
+import { RoundSeeds } from "./provably-fair/round-seeds";
+import { RoundVerification } from "./provably-fair/round-verification";
 import { RoundStatus, VALID_TRANSITIONS } from "./round-status";
 
 export class Round {
   private _status: RoundStatus;
   private readonly _bets: Bet[] = [];
 
-  constructor(private readonly _id: string) {
+  constructor(
+    private readonly _id: string,
+    private readonly _seeds?: RoundSeeds,
+    private readonly _crashPoint?: CrashPoint,
+  ) {
     this._status = RoundStatus.BETTING;
   }
 
@@ -25,6 +32,34 @@ export class Round {
 
   get bets(): ReadonlyArray<Bet> {
     return [...this._bets];
+  }
+
+  get crashPoint(): CrashPoint | undefined {
+    return this._crashPoint;
+  }
+
+  /**
+   * Returns the public commitment (hashedServerSeed) that players use to
+   * verify the round was not tampered with before bets were placed.
+   * Only meaningful when the round was created with provably fair seeds.
+   */
+  get hashedServerSeed(): string | undefined {
+    return this._seeds?.hashedServerSeed;
+  }
+
+  /**
+   * Builds the full verification record for this round.
+   * Includes the revealed serverSeed, so only call this after the round ends.
+   * Throws if the round has no provably fair seeds attached.
+   */
+  buildVerification(): RoundVerification {
+    if (!this._seeds || !this._crashPoint) {
+      throw new Error(`Round ${this._id} was not created with provably fair seeds`);
+    }
+    if (this._status === RoundStatus.BETTING || this._status === RoundStatus.IN_PROGRESS) {
+      throw new Error(`Round ${this._id} is still in progress; serverSeed is not yet revealed`);
+    }
+    return new RoundVerification(this._id, this._seeds, this._crashPoint);
   }
 
   placeBet(bet: Bet): void {
