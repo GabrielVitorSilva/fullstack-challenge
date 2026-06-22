@@ -11,6 +11,7 @@ import { IRoundRepository } from "../../src/domain/ports/round-repository.port";
 import { Round } from "../../src/domain/round";
 import { HandleWalletDebitedUseCase } from "../../src/application/use-cases/handle-wallet-debited.use-case";
 import { InMemoryEventPublisher } from "../../src/infrastructure/messaging/in-memory-event-publisher";
+import { InMemoryOutbox } from "../../src/infrastructure/messaging/in-memory-outbox";
 
 class InMemoryRoundRepository implements IRoundRepository {
   private readonly store = new Map<string, Round>();
@@ -34,7 +35,8 @@ const setup = () => {
   const repo = new InMemoryRoundRepository();
   repo.seed(round);
   const publisher = new InMemoryEventPublisher();
-  const useCase = new HandleWalletDebitedUseCase(repo, publisher);
+  const outbox = new InMemoryOutbox(repo, publisher);
+  const useCase = new HandleWalletDebitedUseCase(repo, outbox);
   return { round, repo, publisher, useCase };
 };
 
@@ -76,15 +78,16 @@ describe("HandleWalletDebitedUseCase — late-event guard (VOIDED bet)", () => {
     const repo = new InMemoryRoundRepository();
     repo.seed(round);
     const publisher = new InMemoryEventPublisher();
-    const useCase = new HandleWalletDebitedUseCase(repo, publisher);
+    const outbox = new InMemoryOutbox(repo, publisher);
+    const useCase = new HandleWalletDebitedUseCase(repo, outbox);
     return { round, bet, publisher, useCase };
   };
 
-  it("does NOT confirm a VOIDED bet when a late WalletDebitedEvent arrives", async () => {
+  it("transitions bet to VOIDED_COMPENSATED (not CONFIRMED) when a late WalletDebitedEvent arrives", async () => {
     const { bet, useCase } = setupVoided();
     const event = buildWalletDebitedEvent("bet-1", "round-1", "player-1", 500n);
     await useCase.execute(event);
-    expect(bet.status).toBe(BetStatus.VOIDED);
+    expect(bet.status).toBe(BetStatus.VOIDED_COMPENSATED);
   });
 
   it("issues a compensating CreditWalletCommand to refund the player", async () => {
@@ -116,12 +119,13 @@ describe("HandleWalletDebitedUseCase — late-event guard (VOIDED bet)", () => {
     const repo = new InMemoryRoundRepository();
     repo.seed(round);
     const publisher = new InMemoryEventPublisher();
-    const useCase = new HandleWalletDebitedUseCase(repo, publisher);
+    const outbox = new InMemoryOutbox(repo, publisher);
+    const useCase = new HandleWalletDebitedUseCase(repo, outbox);
 
     const event = buildWalletDebitedEvent("bet-2", "round-2", "player-2", 200n);
     await useCase.execute(event);
 
-    expect(bet.status).toBe(BetStatus.VOIDED);
+    expect(bet.status).toBe(BetStatus.VOIDED_COMPENSATED);
     expect((publisher.messages[0] as CreditWalletCommand).type).toBe(CREDIT_WALLET_COMMAND);
   });
 });

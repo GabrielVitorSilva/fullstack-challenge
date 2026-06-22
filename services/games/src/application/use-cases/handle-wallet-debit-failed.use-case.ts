@@ -7,9 +7,12 @@ import { IRoundRepository } from "../../domain/ports/round-repository.port";
  * Reacts to WalletDebitFailedEvent: marks the bet as DEBIT_FAILED,
  * removing it from the active bets in this round.
  *
- * Late-arrival guard: if the round already ended (bet is VOIDED), the failure
- * event is a no-op — the bet is already in a terminal state and no debit
- * occurred, so there is nothing to undo.
+ * Idempotency (duplicate-event safety):
+ *   DEBIT_FAILED — bet was already failed; silently ignore the replay.
+ *
+ * Late-arrival guard:
+ *   VOIDED — the round ended before the debit was attempted. No debit
+ *            occurred so there is nothing to undo; this is a no-op.
  */
 export class HandleWalletDebitFailedUseCase {
   constructor(private readonly rounds: IRoundRepository) {}
@@ -21,9 +24,12 @@ export class HandleWalletDebitFailedUseCase {
     const bet = round.findBet(event.betId);
     if (!bet) throw new BetNotFoundError(event.betId);
 
-    if (bet.status === BetStatus.VOIDED) {
-      return;
-    }
+    // Duplicate event: bet was already failed — no-op
+    if (bet.status === BetStatus.DEBIT_FAILED) return;
+
+    // Late-arrival: round ended before debit occurred — no financial effect,
+    // nothing to undo
+    if (bet.status === BetStatus.VOIDED) return;
 
     round.failBet(event.betId);
     await this.rounds.save(round);
