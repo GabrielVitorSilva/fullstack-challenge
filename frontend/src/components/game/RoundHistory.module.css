@@ -1,0 +1,59 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.strip {
+  display: flex;
+  gap: 0.375rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+.strip::-webkit-scrollbar {
+  height: 3px;
+}
+
+.strip::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 2px;
+}
+
+.badge {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.375rem;
+  border: 1px solid;
+}
+
+.badgeLow {
+  color: var(--color-error);
+  background: var(--color-error-bg);
+  border-color: rgba(240, 68, 56, 0.25);
+}
+
+.badgeMid {
+  color: var(--color-accent);
+  background: var(--color-accent-dim);
+  border-color: rgba(240, 180, 41, 0.25);
+}
+
+.badgeHigh {
+  color: var(--color-success);
+  background: rgba(62, 207, 107, 0.08);
+  border-color: rgba(62, 207, 107, 0.25);
+}

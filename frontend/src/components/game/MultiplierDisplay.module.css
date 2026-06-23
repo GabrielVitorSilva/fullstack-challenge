@@ -1,0 +1,113 @@
+.display {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 1rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 380px;
+}
+
+/* ── Header ──────────────────────────────────────────────── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  flex-shrink: 0;
+}
+
+.badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  border: 1px solid;
+}
+
+.badgeBetting {
+  color: var(--color-accent);
+  border-color: rgba(240, 180, 41, 0.35);
+  background: rgba(240, 180, 41, 0.1);
+}
+
+.badgeInProgress {
+  color: var(--color-success);
+  border-color: rgba(62, 207, 107, 0.35);
+  background: rgba(62, 207, 107, 0.1);
+}
+
+.badgeCrashed {
+  color: var(--color-error);
+  border-color: rgba(240, 68, 56, 0.35);
+  background: rgba(240, 68, 56, 0.1);
+}
+
+.countdown {
+  font-size: 0.825rem;
+  color: var(--color-text-secondary);
+}
+
+.countdown strong {
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Graph ───────────────────────────────────────────────── */
+.graphWrapper {
+  position: relative;
+  flex: 1;
+  min-height: 260px;
+}
+
+.graph {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Multiplier overlay ──────────────────────────────────── */
+.multiplierOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+
+.multiplierValue {
+  font-size: clamp(2.75rem, 7vw, 5.5rem);
+  font-weight: 800;
+  font-family: var(--font-mono);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  text-shadow: 0 0 48px currentColor;
+  transition: color 0.2s;
+}
+
+.multBetting {
+  color: var(--color-accent);
+  opacity: 0.7;
+}
+
+.multInProgress {
+  color: var(--color-success);
+}
+
+.multCrashed {
+  color: var(--color-error);
+}
+
+.phaseHint {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
