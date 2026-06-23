@@ -137,16 +137,26 @@ services:
       start_period: 15s
 
   # ---------------------------------------------------------------------------
-  # Frontend (placeholder — candidate implements)
+  # Frontend (Vite + React — served via nginx in production)
   # ---------------------------------------------------------------------------
-  # frontend:
-  #   build:
-  #     context: ./frontend
-  #     dockerfile: Dockerfile
-  #   ports:
-  #     - "3000:3000"
-  #   depends_on:
-  #     - kong
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # VITE_* vars are baked into the static bundle at build time.
+        # Override these args when targeting a non-localhost environment.
+        VITE_OIDC_AUTHORITY: http://localhost:8080/realms/crash-game
+        VITE_OIDC_CLIENT_ID: crash-game-client
+        VITE_OIDC_REDIRECT_URI: http://localhost:3000/auth/callback
+        VITE_API_BASE_URL: http://localhost:8000
+    ports:
+      - "3000:80"
+    depends_on:
+      kong:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
 
 volumes:
   postgres_data:
