@@ -12,3 +12,12 @@ export function centsToDisplay(cents: number): string {
   const sign = intCents < 0 ? "-" : "";
   return `${sign}${whole}.${String(fraction).padStart(2, "0")}`;
 }
+
+/** Same as centsToDisplay but accepts bigint (from WebSocket events). */
+export function bigintCentsToDisplay(cents: bigint): string {
+  const abs = cents < 0n ? -cents : cents;
+  const whole = abs / 100n;
+  const fraction = abs % 100n;
+  const sign = cents < 0n ? "-" : "";
+  return `${sign}${whole}.${String(fraction).padStart(2, "0")}`;
+}

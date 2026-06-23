@@ -288,3 +288,146 @@ describe("useGame — bet tracking", () => {
     expect(result.current.history.length).toBeLessThanOrEqual(20);
   });
 });
+
+describe("useGame — live bets", () => {
+  beforeEach(() => {
+    mockEventListeners.clear();
+    mockStateListeners.clear();
+    vi.clearAllMocks();
+  });
+
+  function setupRound(roundId = "r-1") {
+    emitEvent({
+      type: "round.betting",
+      roundId,
+      bettingEndsAt: new Date(Date.now() + 5000).toISOString(),
+      hashedServerSeed: "a".repeat(64),
+    });
+  }
+
+  it("liveBets starts empty", () => {
+    const { result } = renderHook(() => useGame());
+    expect(result.current.liveBets).toHaveLength(0);
+  });
+
+  it("adds a bet to liveBets on bet.placed", () => {
+    const { result } = renderHook(() => useGame());
+    act(() => { setupRound(); });
+    act(() => {
+      emitEvent({ type: "bet.placed", roundId: "r-1", betId: "b-1", playerId: "player-42", amountCents: "1000" });
+    });
+    expect(result.current.liveBets).toHaveLength(1);
+    expect(result.current.liveBets[0].betId).toBe("b-1");
+    expect(result.current.liveBets[0].amountCents).toBe(1000n);
+    expect(result.current.liveBets[0].status).toBe("active");
+  });
+
+  it("does not add duplicate bets (idempotent on bet.placed)", () => {
+    const { result } = renderHook(() => useGame());
+    act(() => { setupRound(); });
+    act(() => {
+      emitEvent({ type: "bet.placed", roundId: "r-1", betId: "b-1", playerId: "player-42", amountCents: "1000" });
+      emitEvent({ type: "bet.placed", roundId: "r-1", betId: "b-1", playerId: "player-42", amountCents: "1000" });
+    });
+    expect(result.current.liveBets).toHaveLength(1);
+  });
+
+  it("ignores bet.placed for a different round", () => {
+    const { result } = renderHook(() => useGame());
+    act(() => { setupRound("r-1"); });
+    act(() => {
+      emitEvent({ type: "bet.placed", roundId: "r-DIFFERENT", betId: "b-1", playerId: "player-42", amountCents: "1000" });
+    });
+    expect(result.current.liveBets).toHaveLength(0);
+  });
+
+  it("updates bet to cashed_out on bet.cashedout", () => {
+    const { result } = renderHook(() => useGame());
+    act(() => { setupRound(); });
+    act(() => {
+      emitEvent({ type: "bet.placed", roundId: "r-1", betId: "b-1", playerId: "player-42", amountCents: "1000" });
+    });
+    act(() => {
+      emitEvent({ type: "bet.cashedout", roundId: "r-1", betId: "b-1", playerId: "player-42", multiplier: 2.5, payoutCents: "2500" });
+    });
+    const bet = result.current.liveBets[0];
+    expect(bet.status).toBe("cashed_out");
+    expect(bet.cashoutMultiplier).toBe(2.5);
+    expect(bet.payoutCents).toBe(2500n);
+  });
+
+  it("ignores bet.cashedout for a different round", () => {
+    const { result } = renderHook(() => useGame());
+    act(() => { setupRound(); });
+    act(() => {
+      emitEvent({ type: "bet.placed", roundId: "r-1", betId: "b-1", playerId: "player-42", amountCents: "1000" });
+    });
+    act(() => {
+      emitEvent({ type: "bet.cashedout", roundId: "r-DIFFERENT", betId: "b-1", playerId: "player-42", multiplier: 2.5, payoutCents: "2500" });
+    });
+    expect(result.current.liveBets[0].status).toBe("active");
+  });
+
+  it("marks all active bets as lost on round.crashed", () => {
+    const { result } = renderHook(() => useGame());
+    act(() => { setupRound(); });
+    act(() => {
+      emitEvent({ type: "bet.placed", roundId: "r-1", betId: "b-1", playerId: "p-1", amountCents: "500" });
+      emitEvent({ type: "bet.placed", roundId: "r-1", betId: "b-2", playerId: "p-2", amountCents: "1500" });
+    });
+    act(() => {
+      emitEvent({ type: "round.started", roundId: "r-1", startedAt: new Date().toISOString() });
+    });
+    act(() => {
+      emitEvent({ type: "round.crashed", roundId: "r-1", crashMultiplier: 1.12 });
+    });
+    expect(result.current.liveBets.every((b) => b.status === "lost")).toBe(true);
+  });
+
+  it("preserves cashed_out status on round.crashed (not overwritten to lost)", () => {
+    const { result } = renderHook(() => useGame());
+    act(() => { setupRound(); });
+    act(() => {
+      emitEvent({ type: "bet.placed", roundId: "r-1", betId: "b-1", playerId: "p-1", amountCents: "500" });
+    });
+    act(() => {
+      emitEvent({ type: "round.started", roundId: "r-1", startedAt: new Date().toISOString() });
+    });
+    act(() => {
+      emitEvent({ type: "bet.cashedout", roundId: "r-1", betId: "b-1", playerId: "p-1", multiplier: 2.0, payoutCents: "1000" });
+    });
+    act(() => {
+      emitEvent({ type: "round.crashed", roundId: "r-1", crashMultiplier: 1.5 });
+    });
+    expect(result.current.liveBets[0].status).toBe("cashed_out");
+  });
+
+  it("clears liveBets on new round.betting", () => {
+    const { result } = renderHook(() => useGame());
+    act(() => { setupRound("r-1"); });
+    act(() => {
+      emitEvent({ type: "bet.placed", roundId: "r-1", betId: "b-1", playerId: "p-1", amountCents: "500" });
+    });
+    act(() => {
+      emitEvent({
+        type: "round.betting",
+        roundId: "r-2",
+        bettingEndsAt: new Date(Date.now() + 5000).toISOString(),
+        hashedServerSeed: "b".repeat(64),
+      });
+    });
+    expect(result.current.liveBets).toHaveLength(0);
+  });
+
+  it("clears liveBets on round.state with a new roundId", () => {
+    const { result } = renderHook(() => useGame());
+    act(() => { setupRound("r-1"); });
+    act(() => {
+      emitEvent({ type: "bet.placed", roundId: "r-1", betId: "b-1", playerId: "p-1", amountCents: "500" });
+    });
+    act(() => {
+      emitEvent({ type: "round.state", roundId: "r-99", phase: "IN_PROGRESS", multiplier: 1.5 });
+    });
+    expect(result.current.liveBets).toHaveLength(0);
+  });
+});

@@ -4,6 +4,7 @@ import { useGame } from "@/hooks/useGame";
 import { MultiplierDisplay } from "@/components/game/MultiplierDisplay";
 import { BetPanel } from "@/components/game/BetPanel";
 import { RoundHistory } from "@/components/game/RoundHistory";
+import { LiveBets } from "@/components/game/LiveBets";
 import styles from "./GamePage.module.css";
 
 export function GamePage() {
@@ -50,6 +51,7 @@ export function GamePage() {
           cashoutMultiplier={game.multiplier}
         />
       </div>
+      <LiveBets liveBets={game.liveBets} />
       <RoundHistory history={game.history} />
     </div>
   );

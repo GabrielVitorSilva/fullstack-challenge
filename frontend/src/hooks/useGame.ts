@@ -18,12 +18,24 @@ export interface ActiveBet {
   cashedOut: boolean;
 }
 
+export type LiveBetStatus = "active" | "cashed_out" | "lost";
+
+export interface LiveBet {
+  betId: string;
+  playerId: string;
+  amountCents: bigint;
+  status: LiveBetStatus;
+  cashoutMultiplier?: number;
+  payoutCents?: bigint;
+}
+
 export interface GameState {
   phase: GamePhase;
   multiplier: number;
   roundId: string | null;
   bettingCountdown: number | null;
   history: RoundSummary[];
+  liveBets: LiveBet[];
   connectionState: ConnectionState;
   activeBet: ActiveBet | null;
   placeBet: (amountCents: bigint) => void;
@@ -40,6 +52,7 @@ interface InternalState {
   roundId: string | null;
   bettingEndsAt: string | null;
   history: RoundSummary[];
+  liveBets: LiveBet[];
   connectionState: ConnectionState;
   activeBet: ActiveBet | null;
 }
@@ -58,6 +71,7 @@ const INITIAL_STATE: InternalState = {
   roundId: null,
   bettingEndsAt: null,
   history: [],
+  liveBets: [],
   connectionState: "connecting",
   activeBet: null,
 };
@@ -96,16 +110,18 @@ function reducer(state: InternalState, action: Action): InternalState {
 
 function applyEvent(state: InternalState, event: GameServerEvent): InternalState {
   switch (event.type) {
-    case "round.state":
+    case "round.state": {
+      const isNewRound = state.roundId !== event.roundId;
       return {
         ...state,
         phase: event.phase,
         roundId: event.roundId,
         multiplier: event.multiplier,
         bettingEndsAt: event.bettingEndsAt ?? null,
-        // Clear active bet when syncing state for a new round
-        activeBet: state.roundId !== event.roundId ? null : state.activeBet,
+        activeBet: isNewRound ? null : state.activeBet,
+        liveBets: isNewRound ? [] : state.liveBets,
       };
+    }
 
     case "round.betting":
       return {
@@ -115,6 +131,7 @@ function applyEvent(state: InternalState, event: GameServerEvent): InternalState
         multiplier: 1.0,
         bettingEndsAt: event.bettingEndsAt,
         activeBet: null,
+        liveBets: [],
       };
 
     case "round.started":
@@ -140,13 +157,41 @@ function applyEvent(state: InternalState, event: GameServerEvent): InternalState
         phase: "CRASHED",
         multiplier: event.crashMultiplier,
         history: [summary, ...state.history].slice(0, MAX_HISTORY),
+        liveBets: state.liveBets.map((b) =>
+          b.status === "active" ? { ...b, status: "lost" as LiveBetStatus } : b,
+        ),
       };
     }
 
-    // bet.placed and bet.cashedout are informational — future live feed feature
-    case "bet.placed":
-    case "bet.cashedout":
-      return state;
+    case "bet.placed": {
+      if (event.roundId !== state.roundId) return state;
+      const alreadyExists = state.liveBets.some((b) => b.betId === event.betId);
+      if (alreadyExists) return state;
+      const newBet: LiveBet = {
+        betId: event.betId,
+        playerId: event.playerId,
+        amountCents: BigInt(event.amountCents),
+        status: "active",
+      };
+      return { ...state, liveBets: [newBet, ...state.liveBets] };
+    }
+
+    case "bet.cashedout": {
+      if (event.roundId !== state.roundId) return state;
+      return {
+        ...state,
+        liveBets: state.liveBets.map((b) =>
+          b.betId === event.betId
+            ? {
+                ...b,
+                status: "cashed_out" as LiveBetStatus,
+                cashoutMultiplier: event.multiplier,
+                payoutCents: BigInt(event.payoutCents),
+              }
+            : b,
+        ),
+      };
+    }
 
     default:
       return state;
@@ -234,6 +279,7 @@ export function useGame(): GameState {
       roundId: state.roundId,
       bettingCountdown: computeCountdown(state.bettingEndsAt),
       history: state.history,
+      liveBets: state.liveBets,
       connectionState: state.connectionState,
       activeBet: state.activeBet,
       placeBet: handlePlaceBet,
