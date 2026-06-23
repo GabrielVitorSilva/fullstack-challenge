@@ -13,10 +13,14 @@
     "@nestjs/common": "^11.1.17",
     "@nestjs/core": "^11.1.17",
     "@nestjs/platform-express": "^11.1.17",
+    "@nestjs/platform-ws": "^11.1.17",
+    "@nestjs/websockets": "^11.1.17",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2"
+    "rxjs": "^7.8.2",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@types/ws": "^8.5.13",
     "bun-types": "latest",
     "typescript": "^5.8.3"
   }

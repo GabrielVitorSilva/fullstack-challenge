@@ -1,5 +1,6 @@
 import styles from "./BetPanel.module.css";
 import type { GamePhase } from "@/hooks/useGame";
+import { formatMultiplier } from "@/utils/game";
 
 interface Props {
   phase: GamePhase;
@@ -11,6 +12,8 @@ interface Props {
   onAutoCashoutChange: (value: string) => void;
   onPlaceBet: () => void;
   onCashout: () => void;
+  hasPendingBet: boolean;
+  cashoutMultiplier: number;
 }
 
 const QUICK_AMOUNTS = [1, 5, 25] as const;
@@ -25,13 +28,22 @@ export function BetPanel({
   onAutoCashoutChange,
   onPlaceBet,
   onCashout,
+  hasPendingBet,
+  cashoutMultiplier,
 }: Props) {
-  const canBet = phase === "BETTING";
-  const canCashout = phase === "IN_PROGRESS";
+  const canBet = phase === "BETTING" && !hasPendingBet;
+  const canCashout = phase === "IN_PROGRESS" && hasPendingBet;
 
   function handleQuickAdd(amount: number) {
     const current = parseFloat(betAmount) || 0;
     onBetAmountChange((current + amount).toFixed(2));
+  }
+
+  function betButtonLabel(): string {
+    if (hasPendingBet) return "Bet Placed";
+    if (phase === "IN_PROGRESS") return "Betting Closed";
+    if (phase === "CRASHED") return "Round Ended";
+    return "Place Bet";
   }
 
   return (
@@ -111,7 +123,7 @@ export function BetPanel({
           disabled={!canBet}
           type="button"
         >
-          {canBet ? "Place Bet" : phase === "IN_PROGRESS" ? "Betting Closed" : "Round Ended"}
+          {betButtonLabel()}
         </button>
 
         <button
@@ -121,7 +133,9 @@ export function BetPanel({
           type="button"
         >
           Cash Out
-          {canCashout && <span className={styles.cashoutMultiplier}> @ 1.00×</span>}
+          {canCashout && (
+            <span className={styles.cashoutMultiplier}> @ {formatMultiplier(cashoutMultiplier)}</span>
+          )}
         </button>
       </div>
     </div>
