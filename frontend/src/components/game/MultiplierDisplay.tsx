@@ -1,11 +1,13 @@
 import styles from "./MultiplierDisplay.module.css";
 import type { GamePhase } from "@/hooks/useGame";
+import type { ConnectionState } from "@/services/gameSocket";
 import { formatMultiplier } from "@/utils/game";
 
 interface Props {
   phase: GamePhase;
   multiplier: number;
   bettingCountdown: number | null;
+  connectionState: ConnectionState;
 }
 
 const PHASE_LABEL: Record<GamePhase, string> = {
@@ -26,14 +28,14 @@ const MULT_CLASS: Record<GamePhase, string> = {
   CRASHED: styles.multCrashed,
 };
 
-export function MultiplierDisplay({ phase, multiplier, bettingCountdown }: Props) {
+export function MultiplierDisplay({ phase, multiplier, bettingCountdown, connectionState }: Props) {
   return (
     <div className={styles.display}>
       <div className={styles.header}>
         <span className={`${styles.badge} ${BADGE_CLASS[phase]}`}>
-          {PHASE_LABEL[phase]}
+          {connectionState === "disconnected" ? "Connecting…" : PHASE_LABEL[phase]}
         </span>
-        {phase === "BETTING" && bettingCountdown !== null && (
+        {phase === "BETTING" && bettingCountdown !== null && connectionState === "connected" && (
           <span className={styles.countdown}>
             Starting in <strong>{bettingCountdown}s</strong>
           </span>
