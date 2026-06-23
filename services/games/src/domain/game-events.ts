@@ -49,12 +49,19 @@ export interface RoundCrashedEvent {
  * Snapshot of a single bet included in RoundStateEvent for late-joining
  * clients. Internal-only statuses (DEBIT_FAILED, VOIDED, VOIDED_COMPENSATED)
  * are omitted from the snapshot because they are not meaningful to the UI.
+ *
+ * cashoutMultiplier and payoutCents are present only for cashed_out bets when
+ * the gateway has the detail cached from the bet.cashedout broadcast; a client
+ * may still see a cashed_out bet without these fields if the server restarted
+ * between the cashout and the reconnect.
  */
 export interface LiveBetSnapshot {
   betId: string;
   playerId: string;
   amountCents: string;
   status: "active" | "cashed_out" | "lost";
+  cashoutMultiplier?: number;
+  payoutCents?: string;
 }
 
 /**

@@ -58,6 +58,11 @@ export class RoundLifecycleService implements OnModuleInit, OnModuleDestroy {
   private currentMultiplierHundredths = 100n;
   private currentBettingEndsAt: string | null = null;
   private stopped = false;
+  // Cashout details keyed by betId for the current round only.
+  // Populated by broadcastCashout so that handleConnection can include
+  // cashoutMultiplier and payoutCents in the round.state snapshot.
+  // Cleared at the start of every new betting phase.
+  private readonly cashoutByBetId = new Map<string, { multiplier: number; payoutCents: string }>();
 
   constructor(private readonly rounds: IRoundRepository) {}
 
@@ -97,7 +102,12 @@ export class RoundLifecycleService implements OnModuleInit, OnModuleDestroy {
   }
 
   broadcastCashout(event: Omit<BetCashedOutEvent, "type">): void {
+    this.cashoutByBetId.set(event.betId, { multiplier: event.multiplier, payoutCents: event.payoutCents });
     this.broadcast({ type: GAME_WS_EVENT.BET_CASHEDOUT, ...event });
+  }
+
+  getCashoutDetail(betId: string): { multiplier: number; payoutCents: string } | undefined {
+    return this.cashoutByBetId.get(betId);
   }
 
   stop(): void {
@@ -130,6 +140,7 @@ export class RoundLifecycleService implements OnModuleInit, OnModuleDestroy {
     this.currentRound = round;
     this.setMultiplier(1.0);
     this.roundStartedAt = null;
+    this.cashoutByBetId.clear();
 
     const bettingEndsAt = new Date(Date.now() + BETTING_DURATION_MS).toISOString();
     this.currentBettingEndsAt = bettingEndsAt;

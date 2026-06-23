@@ -82,13 +82,12 @@ const MAX_HISTORY = 20;
  * Reconciles the server snapshot with local live-bet state.
  *
  * The server snapshot is the source of truth for which bets exist and their
- * status. The only thing it does NOT carry is the cashout detail (multiplier
- * and payout) delivered by `bet.cashedout` events — those are preserved from
- * local state when the server confirms the bet is already cashed_out.
+ * status. For cashed_out bets, the snapshot now carries cashoutMultiplier and
+ * payoutCents when the gateway has them cached; local state is the fallback
+ * for older snapshots or post-restart reconnects where the cache is cold.
  *
- * Bets absent from the snapshot are silently dropped: they were either in an
- * internal state (DEBIT_FAILED, VOIDED) or belong to a round the client
- * missed entirely. Passing an empty `localBets` (new round) is safe.
+ * Bets absent from the snapshot are silently dropped (DEBIT_FAILED, VOIDED,
+ * or bets from a round the client missed entirely).
  */
 function reconcileLiveBets(snapshotBets: LiveBetSnapshot[], localBets: LiveBet[]): LiveBet[] {
   const localByBetId = new Map(localBets.map((b) => [b.betId, b]));
@@ -100,13 +99,39 @@ function reconcileLiveBets(snapshotBets: LiveBetSnapshot[], localBets: LiveBet[]
       amountCents: BigInt(snap.amountCents),
       status: snap.status,
     };
-    // Preserve cashout details from local state: the snapshot carries the
-    // authoritative status but not the multiplier/payout from bet.cashedout.
-    if (snap.status === "cashed_out" && local?.cashoutMultiplier !== undefined) {
-      return { ...base, cashoutMultiplier: local.cashoutMultiplier, payoutCents: local.payoutCents };
+    if (snap.status === "cashed_out") {
+      // Snapshot cashout details take precedence (server is authoritative).
+      // Fall back to local state for snapshots that predate this field.
+      const multiplier = snap.cashoutMultiplier ?? local?.cashoutMultiplier;
+      const payoutCents =
+        snap.payoutCents !== undefined ? BigInt(snap.payoutCents) : local?.payoutCents;
+      return { ...base, cashoutMultiplier: multiplier, payoutCents };
     }
     return base;
   });
+}
+
+/**
+ * Reconciles activeBet against the server snapshot on reconnect.
+ *
+ * The server snapshot is authoritative: if the bet no longer appears (debit
+ * failed / voided) or is in a terminal state (lost), activeBet is cleared.
+ * If the bet cashed out while the client was disconnected, cashedOut is set.
+ * When the snapshot is absent (no bets at all, old backend), activeBet is
+ * kept as-is since we have no information to override it with.
+ */
+function reconcileActiveBet(
+  activeBet: ActiveBet | null,
+  snapshotBets: LiveBetSnapshot[] | undefined,
+  isNewRound: boolean,
+): ActiveBet | null {
+  if (isNewRound) return null;
+  if (!activeBet) return null;
+  if (snapshotBets === undefined) return activeBet;
+  const snapBet = snapshotBets.find((b) => b.betId === activeBet.betId);
+  if (!snapBet || snapBet.status === "lost") return null;
+  if (snapBet.status === "cashed_out") return { ...activeBet, cashedOut: true };
+  return activeBet;
 }
 
 function reducer(state: InternalState, action: Action): InternalState {
@@ -143,10 +168,6 @@ function applyEvent(state: InternalState, event: GameServerEvent): InternalState
   switch (event.type) {
     case "round.state": {
       const isNewRound = state.roundId !== event.roundId;
-      // Always reconcile from the server snapshot — it is the source of truth
-      // for bet existence and status. For new rounds, local state is empty.
-      // For same-round reconnects, local state provides cashout details that
-      // the snapshot omits; all other fields come from the server.
       const liveBets = reconcileLiveBets(
         event.bets ?? [],
         isNewRound ? [] : state.liveBets,
@@ -157,7 +178,7 @@ function applyEvent(state: InternalState, event: GameServerEvent): InternalState
         roundId: event.roundId,
         multiplier: event.multiplier,
         bettingEndsAt: event.bettingEndsAt ?? null,
-        activeBet: isNewRound ? null : state.activeBet,
+        activeBet: reconcileActiveBet(state.activeBet, event.bets, isNewRound),
         liveBets,
       };
     }

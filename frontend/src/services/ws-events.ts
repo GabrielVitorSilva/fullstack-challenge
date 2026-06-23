@@ -12,6 +12,10 @@ export interface LiveBetSnapshot {
   playerId: string;
   amountCents: string;
   status: "active" | "cashed_out" | "lost";
+  /** Present for cashed_out bets when the gateway has the detail cached. */
+  cashoutMultiplier?: number;
+  /** Stringified BigInt; present alongside cashoutMultiplier. */
+  payoutCents?: string;
 }
 
 export type GameServerEvent =

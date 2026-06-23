@@ -140,6 +140,46 @@ describe("RoundLifecycleService lifecycle", () => {
     expect(evt.payoutCents).toBe("1500");
   });
 
+  it("getCashoutDetail returns undefined before any cashout", () => {
+    const { service } = buildService();
+    expect(service.getCashoutDetail("bet-unknown")).toBeUndefined();
+  });
+
+  it("getCashoutDetail returns detail after broadcastCashout", async () => {
+    service.onModuleInit();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const round = service.getCurrentRound()!;
+    service.broadcastCashout({
+      roundId: round.id,
+      betId: "bet-42",
+      playerId: "player-1",
+      multiplier: 2.5,
+      payoutCents: "2500",
+    });
+
+    const detail = service.getCashoutDetail("bet-42");
+    expect(detail).toBeDefined();
+    expect(detail?.multiplier).toBe(2.5);
+    expect(detail?.payoutCents).toBe("2500");
+  });
+
+  it("getCashoutDetail returns undefined for a different betId", async () => {
+    service.onModuleInit();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const round = service.getCurrentRound()!;
+    service.broadcastCashout({
+      roundId: round.id,
+      betId: "bet-A",
+      playerId: "player-1",
+      multiplier: 2.0,
+      payoutCents: "2000",
+    });
+
+    expect(service.getCashoutDetail("bet-B")).toBeUndefined();
+  });
+
   it("saves round to repository on start", async () => {
     service.onModuleInit();
     await new Promise((r) => setTimeout(r, 10));

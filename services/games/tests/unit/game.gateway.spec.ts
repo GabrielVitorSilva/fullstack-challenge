@@ -68,12 +68,18 @@ function makeRoundWithBets(bets: Bet[]): Round {
   return round;
 }
 
-function buildGateway(round: Round | null, multiplier = 1.5, bettingEndsAt: string | null = null) {
+function buildGateway(
+  round: Round | null,
+  multiplier = 1.5,
+  bettingEndsAt: string | null = null,
+  cashoutDetails: Map<string, { multiplier: number; payoutCents: string }> = new Map(),
+) {
   const mockLifecycle = {
     getCurrentRound: () => round,
     getCurrentMultiplier: () => multiplier,
     getCurrentMultiplierHundredths: () => BigInt(Math.round(multiplier * 100)),
     getCurrentBettingEndsAt: () => bettingEndsAt,
+    getCashoutDetail: (betId: string) => cashoutDetails.get(betId),
     setBroadcast: () => {},
     broadcastBetPlaced: () => {},
     broadcastCashout: () => {},
@@ -224,5 +230,57 @@ describe("GameGateway.handleConnection — round.state snapshot", () => {
 
     expect(sent[0].bettingEndsAt).toBe(bettingEndsAt);
     expect(sent[0].phase).toBe("BETTING");
+  });
+
+  it("includes cashoutMultiplier and payoutCents for cashed_out bet when cached", () => {
+    const bet = makeBet("b-cash", "player-1", 1000n, BS.CASHED_OUT);
+    const round = makeRoundWithBets([bet]);
+    const cashoutDetails = new Map([
+      ["b-cash", { multiplier: 3.14, payoutCents: "3140" }],
+    ]);
+    const gateway = buildGateway(round, 3.14, null, cashoutDetails);
+    const { sent, ws } = makeMockClient();
+
+    gateway.handleConnection(ws);
+
+    const snap = sent[0].bets![0];
+    expect(snap.status).toBe("cashed_out");
+    expect(snap.cashoutMultiplier).toBe(3.14);
+    expect(snap.payoutCents).toBe("3140");
+  });
+
+  it("omits cashout details for cashed_out bet when cache is cold (e.g. after restart)", () => {
+    const bet = makeBet("b-cash", "player-1", 1000n, BS.CASHED_OUT);
+    const round = makeRoundWithBets([bet]);
+    const gateway = buildGateway(round); // no cashout details map
+    const { sent, ws } = makeMockClient();
+
+    gateway.handleConnection(ws);
+
+    const snap = sent[0].bets![0];
+    expect(snap.status).toBe("cashed_out");
+    expect(snap.cashoutMultiplier).toBeUndefined();
+    expect(snap.payoutCents).toBeUndefined();
+  });
+
+  it("only enriches cashed_out bets — active and lost bets have no cashout fields", () => {
+    const bets = [
+      makeBet("b-active", "p-1", 500n, BS.CONFIRMED),
+      makeBet("b-lost",   "p-2", 800n, BS.LOST),
+    ];
+    const cashoutDetails = new Map([
+      ["b-active", { multiplier: 2.0, payoutCents: "1000" }], // should be ignored
+      ["b-lost",   { multiplier: 1.1, payoutCents: "880"  }], // should be ignored
+    ]);
+    const round = makeRoundWithBets(bets);
+    const gateway = buildGateway(round, 2.0, null, cashoutDetails);
+    const { sent, ws } = makeMockClient();
+
+    gateway.handleConnection(ws);
+
+    const active = sent[0].bets!.find((b) => b.betId === "b-active")!;
+    const lost   = sent[0].bets!.find((b) => b.betId === "b-lost")!;
+    expect(active.cashoutMultiplier).toBeUndefined();
+    expect(lost.cashoutMultiplier).toBeUndefined();
   });
 });

@@ -42,12 +42,19 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection {
       .map((bet) => {
         const snapshotStatus = betStatusToSnapshotStatus(bet.status);
         if (!snapshotStatus) return null;
-        return {
+        const base: LiveBetSnapshot = {
           betId: bet.id,
           playerId: bet.playerId,
           amountCents: bet.amount.toCents().toString(),
           status: snapshotStatus,
-        } satisfies LiveBetSnapshot;
+        };
+        if (snapshotStatus === "cashed_out") {
+          const detail = this.lifecycle.getCashoutDetail(bet.id);
+          if (detail) {
+            return { ...base, cashoutMultiplier: detail.multiplier, payoutCents: detail.payoutCents };
+          }
+        }
+        return base;
       })
       .filter((b): b is LiveBetSnapshot => b !== null);
 
