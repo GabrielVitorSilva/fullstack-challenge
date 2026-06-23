@@ -3,7 +3,7 @@ import { useAuth } from "@/auth/useAuth";
 import { GameSocketService, type ConnectionState } from "@/services/gameSocket";
 import { placeBet as apiBetPlace, cashout as apiCashout } from "@/services/game";
 import { buildWsUrl } from "@/services/buildWsUrl";
-import type { GameServerEvent } from "@/services/ws-events";
+import type { GameServerEvent, LiveBetSnapshot } from "@/services/ws-events";
 
 export type GamePhase = "BETTING" | "IN_PROGRESS" | "CRASHED";
 
@@ -78,6 +78,37 @@ const INITIAL_STATE: InternalState = {
 
 const MAX_HISTORY = 20;
 
+/**
+ * Reconciles the server snapshot with local live-bet state.
+ *
+ * The server snapshot is the source of truth for which bets exist and their
+ * status. The only thing it does NOT carry is the cashout detail (multiplier
+ * and payout) delivered by `bet.cashedout` events — those are preserved from
+ * local state when the server confirms the bet is already cashed_out.
+ *
+ * Bets absent from the snapshot are silently dropped: they were either in an
+ * internal state (DEBIT_FAILED, VOIDED) or belong to a round the client
+ * missed entirely. Passing an empty `localBets` (new round) is safe.
+ */
+function reconcileLiveBets(snapshotBets: LiveBetSnapshot[], localBets: LiveBet[]): LiveBet[] {
+  const localByBetId = new Map(localBets.map((b) => [b.betId, b]));
+  return snapshotBets.map((snap) => {
+    const local = localByBetId.get(snap.betId);
+    const base: LiveBet = {
+      betId: snap.betId,
+      playerId: snap.playerId,
+      amountCents: BigInt(snap.amountCents),
+      status: snap.status,
+    };
+    // Preserve cashout details from local state: the snapshot carries the
+    // authoritative status but not the multiplier/payout from bet.cashedout.
+    if (snap.status === "cashed_out" && local?.cashoutMultiplier !== undefined) {
+      return { ...base, cashoutMultiplier: local.cashoutMultiplier, payoutCents: local.payoutCents };
+    }
+    return base;
+  });
+}
+
 function reducer(state: InternalState, action: Action): InternalState {
   switch (action.type) {
     case "CONNECTION_STATE":
@@ -112,17 +143,14 @@ function applyEvent(state: InternalState, event: GameServerEvent): InternalState
   switch (event.type) {
     case "round.state": {
       const isNewRound = state.roundId !== event.roundId;
-      // For a new round: hydrate from the snapshot sent by the server.
-      // For the same round (e.g. WebSocket reconnect without page reload):
-      // keep existing liveBets so incremental events already applied are not lost.
-      const liveBets: LiveBet[] = isNewRound
-        ? (event.bets ?? []).map((b) => ({
-            betId: b.betId,
-            playerId: b.playerId,
-            amountCents: BigInt(b.amountCents),
-            status: b.status,
-          }))
-        : state.liveBets;
+      // Always reconcile from the server snapshot — it is the source of truth
+      // for bet existence and status. For new rounds, local state is empty.
+      // For same-round reconnects, local state provides cashout details that
+      // the snapshot omits; all other fields come from the server.
+      const liveBets = reconcileLiveBets(
+        event.bets ?? [],
+        isNewRound ? [] : state.liveBets,
+      );
       return {
         ...state,
         phase: event.phase,
