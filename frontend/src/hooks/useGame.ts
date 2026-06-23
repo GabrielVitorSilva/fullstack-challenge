@@ -117,7 +117,9 @@ function reconcileLiveBets(snapshotBets: LiveBetSnapshot[], localBets: LiveBet[]
  * The server snapshot is authoritative: if the bet no longer appears (debit
  * failed / voided) or is in a terminal state (lost), activeBet is cleared.
  * If the bet cashed out while the client was disconnected, cashedOut is set.
- * When the snapshot is absent (no bets at all, old backend), activeBet is
+ * If the snapshot still shows the bet as active, any optimistic cashedOut is
+ * reset — the server hasn't confirmed the cashout yet.
+ * When the snapshot is absent (no bets field, old backend), activeBet is
  * kept as-is since we have no information to override it with.
  */
 function reconcileActiveBet(
@@ -131,7 +133,8 @@ function reconcileActiveBet(
   const snapBet = snapshotBets.find((b) => b.betId === activeBet.betId);
   if (!snapBet || snapBet.status === "lost") return null;
   if (snapBet.status === "cashed_out") return { ...activeBet, cashedOut: true };
-  return activeBet;
+  // snapshot says active → server hasn't confirmed cashout; reset any optimistic flag
+  return { ...activeBet, cashedOut: false };
 }
 
 function reducer(state: InternalState, action: Action): InternalState {

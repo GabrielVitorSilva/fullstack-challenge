@@ -863,4 +863,60 @@ describe("useGame — round.state activeBet reconciliation on reconnect", () => 
     });
     expect(result.current.activeBet).toBeNull();
   });
+
+  it("resets cashedOut to false when snapshot shows bet still active after optimistic cashout", () => {
+    const { result } = renderHook(() => useGame());
+    placeBetInRound(result);
+    // Optimistic cashout sent — UI immediately reflects cashedOut = true
+    act(() => { result.current.cashout(); });
+    expect(result.current.activeBet?.cashedOut).toBe(true);
+    const betId = result.current.activeBet!.betId;
+    // Client reconnects; server snapshot shows bet still active (cashout not yet confirmed)
+    act(() => {
+      emitEvent({
+        type: "round.state",
+        roundId: "r-1",
+        phase: "IN_PROGRESS",
+        multiplier: 1.8,
+        bets: [{ betId, playerId: "user-42", amountCents: "1000", status: "active" }],
+      });
+    });
+    expect(result.current.activeBet?.betId).toBe(betId);
+    expect(result.current.activeBet?.cashedOut).toBe(false);
+  });
+
+  it("keeps cashedOut true when snapshot confirms cashed_out after optimistic cashout", () => {
+    const { result } = renderHook(() => useGame());
+    placeBetInRound(result);
+    act(() => { result.current.cashout(); });
+    const betId = result.current.activeBet!.betId;
+    // Server snapshot confirms the cashout
+    act(() => {
+      emitEvent({
+        type: "round.state",
+        roundId: "r-1",
+        phase: "IN_PROGRESS",
+        multiplier: 2.0,
+        bets: [{ betId, playerId: "user-42", amountCents: "1000", status: "cashed_out" }],
+      });
+    });
+    expect(result.current.activeBet?.cashedOut).toBe(true);
+  });
+
+  it("clears activeBet when snapshot omits bet after optimistic cashout", () => {
+    const { result } = renderHook(() => useGame());
+    placeBetInRound(result);
+    act(() => { result.current.cashout(); });
+    // Reconnect: snapshot is empty — bet was voided or debit failed server-side
+    act(() => {
+      emitEvent({
+        type: "round.state",
+        roundId: "r-1",
+        phase: "IN_PROGRESS",
+        multiplier: 1.5,
+        bets: [],
+      });
+    });
+    expect(result.current.activeBet).toBeNull();
+  });
 });
