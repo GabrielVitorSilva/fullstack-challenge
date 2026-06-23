@@ -419,7 +419,7 @@ describe("useGame — live bets", () => {
     expect(result.current.liveBets).toHaveLength(0);
   });
 
-  it("clears liveBets on round.state with a new roundId", () => {
+  it("clears liveBets on round.state with a new roundId and no snapshot", () => {
     const { result } = renderHook(() => useGame());
     act(() => { setupRound("r-1"); });
     act(() => {
@@ -429,5 +429,130 @@ describe("useGame — live bets", () => {
       emitEvent({ type: "round.state", roundId: "r-99", phase: "IN_PROGRESS", multiplier: 1.5 });
     });
     expect(result.current.liveBets).toHaveLength(0);
+  });
+});
+
+describe("useGame — round.state snapshot hydration (late-join / reconnect)", () => {
+  beforeEach(() => {
+    mockEventListeners.clear();
+    mockStateListeners.clear();
+    vi.clearAllMocks();
+  });
+
+  it("hydrates liveBets from bets snapshot on new roundId", () => {
+    const { result } = renderHook(() => useGame());
+    act(() => {
+      emitEvent({
+        type: "round.state",
+        roundId: "r-5",
+        phase: "IN_PROGRESS",
+        multiplier: 2.0,
+        bets: [
+          { betId: "b-1", playerId: "p-1", amountCents: "1000", status: "active" },
+          { betId: "b-2", playerId: "p-2", amountCents: "500", status: "cashed_out" },
+        ],
+      });
+    });
+    expect(result.current.liveBets).toHaveLength(2);
+    expect(result.current.liveBets[0]).toMatchObject({ betId: "b-1", status: "active", amountCents: 1000n });
+    expect(result.current.liveBets[1]).toMatchObject({ betId: "b-2", status: "cashed_out", amountCents: 500n });
+  });
+
+  it("converts amountCents string to bigint during hydration", () => {
+    const { result } = renderHook(() => useGame());
+    act(() => {
+      emitEvent({
+        type: "round.state",
+        roundId: "r-5",
+        phase: "IN_PROGRESS",
+        multiplier: 1.5,
+        bets: [{ betId: "b-1", playerId: "p-1", amountCents: "99999", status: "active" }],
+      });
+    });
+    expect(result.current.liveBets[0].amountCents).toBe(99999n);
+  });
+
+  it("hydrates empty liveBets when snapshot bets array is empty", () => {
+    const { result } = renderHook(() => useGame());
+    act(() => {
+      emitEvent({ type: "round.state", roundId: "r-5", phase: "BETTING", multiplier: 1.0, bets: [] });
+    });
+    expect(result.current.liveBets).toHaveLength(0);
+  });
+
+  it("hydrates empty liveBets when snapshot has no bets field (backward compat)", () => {
+    const { result } = renderHook(() => useGame());
+    act(() => {
+      emitEvent({ type: "round.state", roundId: "r-5", phase: "BETTING", multiplier: 1.0 });
+    });
+    expect(result.current.liveBets).toHaveLength(0);
+  });
+
+  it("keeps existing liveBets when round.state arrives for the same roundId (reconnect idempotency)", () => {
+    const { result } = renderHook(() => useGame());
+    // First: join via round.betting and accumulate a bet via event
+    act(() => {
+      emitEvent({
+        type: "round.betting",
+        roundId: "r-1",
+        bettingEndsAt: new Date(Date.now() + 5000).toISOString(),
+        hashedServerSeed: "a".repeat(64),
+      });
+    });
+    act(() => {
+      emitEvent({ type: "bet.placed", roundId: "r-1", betId: "b-local", playerId: "p-1", amountCents: "1000" });
+    });
+    // Now a round.state for the SAME round arrives (e.g. WebSocket brief reconnect)
+    // with a snapshot that only has one bet — should NOT replace our local state
+    act(() => {
+      emitEvent({
+        type: "round.state",
+        roundId: "r-1",
+        phase: "IN_PROGRESS",
+        multiplier: 1.3,
+        bets: [{ betId: "b-local", playerId: "p-1", amountCents: "1000", status: "active" }],
+      });
+    });
+    // Still only 1 bet — no duplicates, existing state preserved
+    expect(result.current.liveBets).toHaveLength(1);
+    expect(result.current.liveBets[0].betId).toBe("b-local");
+  });
+
+  it("snapshot with lost bets sets status to lost", () => {
+    const { result } = renderHook(() => useGame());
+    act(() => {
+      emitEvent({
+        type: "round.state",
+        roundId: "r-crashed",
+        phase: "CRASHED",
+        multiplier: 1.2,
+        bets: [
+          { betId: "b-1", playerId: "p-1", amountCents: "1000", status: "lost" },
+          { betId: "b-2", playerId: "p-2", amountCents: "2000", status: "cashed_out" },
+        ],
+      });
+    });
+    expect(result.current.liveBets.find((b) => b.betId === "b-1")?.status).toBe("lost");
+    expect(result.current.liveBets.find((b) => b.betId === "b-2")?.status).toBe("cashed_out");
+  });
+
+  it("subsequent bet.placed events after snapshot hydration use dedup guard", () => {
+    const { result } = renderHook(() => useGame());
+    // Join mid-round with existing snapshot
+    act(() => {
+      emitEvent({
+        type: "round.state",
+        roundId: "r-5",
+        phase: "IN_PROGRESS",
+        multiplier: 1.5,
+        bets: [{ betId: "b-1", playerId: "p-1", amountCents: "1000", status: "active" }],
+      });
+    });
+    // A bet.placed for the same bet arrives (possible in race with snapshot)
+    act(() => {
+      emitEvent({ type: "bet.placed", roundId: "r-5", betId: "b-1", playerId: "p-1", amountCents: "1000" });
+    });
+    // Should not duplicate
+    expect(result.current.liveBets).toHaveLength(1);
   });
 });

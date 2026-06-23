@@ -112,6 +112,17 @@ function applyEvent(state: InternalState, event: GameServerEvent): InternalState
   switch (event.type) {
     case "round.state": {
       const isNewRound = state.roundId !== event.roundId;
+      // For a new round: hydrate from the snapshot sent by the server.
+      // For the same round (e.g. WebSocket reconnect without page reload):
+      // keep existing liveBets so incremental events already applied are not lost.
+      const liveBets: LiveBet[] = isNewRound
+        ? (event.bets ?? []).map((b) => ({
+            betId: b.betId,
+            playerId: b.playerId,
+            amountCents: BigInt(b.amountCents),
+            status: b.status,
+          }))
+        : state.liveBets;
       return {
         ...state,
         phase: event.phase,
@@ -119,7 +130,7 @@ function applyEvent(state: InternalState, event: GameServerEvent): InternalState
         multiplier: event.multiplier,
         bettingEndsAt: event.bettingEndsAt ?? null,
         activeBet: isNewRound ? null : state.activeBet,
-        liveBets: isNewRound ? [] : state.liveBets,
+        liveBets,
       };
     }
 

@@ -6,8 +6,8 @@ import {
 } from "@nestjs/websockets";
 import { Server, WebSocket } from "ws";
 import { RoundLifecycleService } from "../../application/services/round-lifecycle.service";
-import type { GameWsEvent, RoundStateEvent } from "../../domain/game-events";
-import { GAME_WS_EVENT } from "../../domain/game-events";
+import type { GameWsEvent, LiveBetSnapshot, RoundStateEvent } from "../../domain/game-events";
+import { GAME_WS_EVENT, betStatusToSnapshotStatus } from "../../domain/game-events";
 import { RoundStatus } from "../../domain/round-status";
 
 // Kong strips the "/games" prefix before forwarding to this service,
@@ -38,12 +38,26 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection {
           ? "IN_PROGRESS"
           : "CRASHED";
 
+    const bets: LiveBetSnapshot[] = round.bets
+      .map((bet) => {
+        const snapshotStatus = betStatusToSnapshotStatus(bet.status);
+        if (!snapshotStatus) return null;
+        return {
+          betId: bet.id,
+          playerId: bet.playerId,
+          amountCents: bet.amount.toCents().toString(),
+          status: snapshotStatus,
+        } satisfies LiveBetSnapshot;
+      })
+      .filter((b): b is LiveBetSnapshot => b !== null);
+
     const stateEvent: RoundStateEvent = {
       type: GAME_WS_EVENT.ROUND_STATE,
       roundId: round.id,
       phase,
       multiplier,
       ...(bettingEndsAt ? { bettingEndsAt } : {}),
+      ...(bets.length > 0 ? { bets } : {}),
     };
 
     this.sendTo(client, stateEvent);

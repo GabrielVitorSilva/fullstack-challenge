@@ -5,6 +5,8 @@
  * does not handle BigInt natively.
  */
 
+import { BetStatus } from "./bet-status";
+
 export const GAME_WS_EVENT = {
   ROUND_BETTING: "round.betting",
   ROUND_STARTED: "round.started",
@@ -43,6 +45,29 @@ export interface RoundCrashedEvent {
   crashMultiplier: number;
 }
 
+/**
+ * Snapshot of a single bet included in RoundStateEvent for late-joining
+ * clients. Internal-only statuses (DEBIT_FAILED, VOIDED, VOIDED_COMPENSATED)
+ * are omitted from the snapshot because they are not meaningful to the UI.
+ */
+export interface LiveBetSnapshot {
+  betId: string;
+  playerId: string;
+  amountCents: string;
+  status: "active" | "cashed_out" | "lost";
+}
+
+/**
+ * Maps a domain BetStatus to the snapshot status sent to clients.
+ * Returns null for internal states that should be excluded from the snapshot.
+ */
+export function betStatusToSnapshotStatus(status: BetStatus): LiveBetSnapshot["status"] | null {
+  if (status === BetStatus.PENDING_DEBIT || status === BetStatus.CONFIRMED) return "active";
+  if (status === BetStatus.CASHED_OUT) return "cashed_out";
+  if (status === BetStatus.LOST) return "lost";
+  return null;
+}
+
 /** Sent to a newly connected client so it can sync immediately. */
 export interface RoundStateEvent {
   type: typeof GAME_WS_EVENT.ROUND_STATE;
@@ -50,6 +75,8 @@ export interface RoundStateEvent {
   phase: "BETTING" | "IN_PROGRESS" | "CRASHED";
   multiplier: number;
   bettingEndsAt?: string;
+  /** Active bets for the current round; absent when the round has no visible bets. */
+  bets?: LiveBetSnapshot[];
 }
 
 export interface BetPlacedEvent {

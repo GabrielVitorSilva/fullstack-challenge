@@ -6,6 +6,14 @@
  * shared npm package, to avoid coupling the frontend build to the backend.
  */
 
+/** Single bet entry in the round.state snapshot for late-joining clients. */
+export interface LiveBetSnapshot {
+  betId: string;
+  playerId: string;
+  amountCents: string;
+  status: "active" | "cashed_out" | "lost";
+}
+
 export type GameServerEvent =
   | {
       type: "round.betting";
@@ -35,6 +43,8 @@ export type GameServerEvent =
       phase: "BETTING" | "IN_PROGRESS" | "CRASHED";
       multiplier: number;
       bettingEndsAt?: string;
+      /** Bet snapshot for clients joining mid-round; absent when round has no visible bets. */
+      bets?: LiveBetSnapshot[];
     }
   | {
       type: "bet.placed";
