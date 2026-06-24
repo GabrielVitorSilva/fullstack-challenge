@@ -13,6 +13,10 @@ export class InMemoryRoundRepository implements IRoundRepository {
     return this.store.get(id);
   }
 
+  async findAll(): Promise<Round[]> {
+    return [...this.store.values()];
+  }
+
   async save(round: Round): Promise<void> {
     this.store.set(round.id, round);
   }

@@ -18,4 +18,5 @@ docs.md
 
 services/*/tests
 packages/*/tests
+tests
 *.log

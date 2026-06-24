@@ -26,11 +26,11 @@ Não esperamos perfeição — esperamos raciocínio claro, código limpo e deci
 
 ### Trade-offs conhecidos
 
-- PostgreSQL e RabbitMQ estão provisionados no Docker, mas os serviços ainda usam repositórios, outbox e publisher em memória.
-- Os contratos e use cases de integração Game/Wallet existem, mas os consumidores/produtores reais de RabbitMQ ainda não estão conectados no runtime.
-- A validação de JWT no backend ainda não foi aplicada aos endpoints protegidos.
-- A cobertura atual não inclui E2E browser/API real com Docker; o frontend usa testes de integração com mocks controlados.
-- O Wallet Service expõe `GET /wallets/me` com saldo inicial em memória; criação de carteira, lançamentos HTTP e persistência ficam como próximos passos.
+- PostgreSQL está provisionado no Docker, mas os repositórios de Game e Wallet ainda são em memória.
+- RabbitMQ está conectado no runtime para comandos/eventos Game ↔ Wallet; outbox/inbox transacional em banco fica como próximo passo.
+- O backend valida JWTs do Keycloak nos endpoints protegidos usando JWKS remoto.
+- Existe E2E de stack acionável por `bun run test:e2e:stack`, além dos testes unitários, integração de serviço e integração de UI.
+- O Wallet Service expõe `POST /wallets` e `GET /wallets/me` com saldo inicial em memória; persistência e ledger ficam como próximos passos.
 
 ---
 
@@ -377,6 +377,7 @@ cd services/wallets && bun test tests/unit
 cd services/games && bun test tests/e2e     # integração de serviço (sem Docker)
 cd frontend && npm test
 cd frontend && npm run build
+bun run test:e2e:stack                     # requer docker stack rodando
 ```
 
 ---

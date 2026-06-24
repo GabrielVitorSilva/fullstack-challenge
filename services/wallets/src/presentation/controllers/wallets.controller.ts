@@ -1,7 +1,10 @@
-import { Controller, Get, Headers, Inject } from "@nestjs/common";
+import { Controller, Get, Headers, Inject, Post, UseGuards } from "@nestjs/common";
 import { Money } from "../../domain/money";
 import type { IWalletRepository } from "../../domain/ports/wallet-repository.port";
 import { Wallet } from "../../domain/wallet";
+import { CurrentUser } from "../../infrastructure/auth/current-user.decorator";
+import { JwtAuthGuard } from "../../infrastructure/auth/jwt-auth.guard";
+import type { AuthenticatedUser } from "../../infrastructure/auth/authenticated-user";
 import { HealthCheckResponseDto } from "../dtos/health-check-response.dto";
 import { WalletResponseDto } from "../dtos/wallet-response.dto";
 
@@ -44,9 +47,25 @@ export class WalletsController {
     return { status: "ok", service: "wallets" };
   }
 
+  @Post()
+  @UseGuards(JwtAuthGuard)
+  async create(
+    @Headers("authorization") authorization?: string,
+    @CurrentUser() user?: AuthenticatedUser,
+  ): Promise<WalletResponseDto> {
+    return this.findOrCreateWallet(user?.sub ?? getUserIdFromAuthorization(authorization));
+  }
+
   @Get("me")
-  async me(@Headers("authorization") authorization?: string): Promise<WalletResponseDto> {
-    const userId = getUserIdFromAuthorization(authorization);
+  @UseGuards(JwtAuthGuard)
+  async me(
+    @Headers("authorization") authorization?: string,
+    @CurrentUser() user?: AuthenticatedUser,
+  ): Promise<WalletResponseDto> {
+    return this.findOrCreateWallet(user?.sub ?? getUserIdFromAuthorization(authorization));
+  }
+
+  private async findOrCreateWallet(userId: string): Promise<WalletResponseDto> {
     let wallet = await this.wallets.findByUserId(userId);
 
     if (!wallet) {

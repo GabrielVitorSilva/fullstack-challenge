@@ -6,9 +6,8 @@ import {
 } from "@nestjs/websockets";
 import { Server, WebSocket } from "ws";
 import { RoundLifecycleService } from "../../application/services/round-lifecycle.service";
-import type { GameWsEvent, LiveBetSnapshot, RoundStateEvent } from "../../domain/game-events";
-import { GAME_WS_EVENT, betStatusToSnapshotStatus } from "../../domain/game-events";
-import { RoundStatus } from "../../domain/round-status";
+import type { GameWsEvent } from "../../domain/game-events";
+import { buildRoundStateEvent } from "../mappers/round-state.mapper";
 
 // Kong strips the "/games" prefix before forwarding to this service,
 // so the gateway must listen at "/ws" (not "/games/ws").
@@ -28,44 +27,12 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection {
     const round = this.lifecycle.getCurrentRound();
     if (!round) return;
 
-    const multiplier = this.lifecycle.getCurrentMultiplier();
-    const bettingEndsAt = this.lifecycle.getCurrentBettingEndsAt();
-
-    const phase =
-      round.status === RoundStatus.BETTING
-        ? "BETTING"
-        : round.status === RoundStatus.IN_PROGRESS
-          ? "IN_PROGRESS"
-          : "CRASHED";
-
-    const bets: LiveBetSnapshot[] = round.bets
-      .map((bet) => {
-        const snapshotStatus = betStatusToSnapshotStatus(bet.status);
-        if (!snapshotStatus) return null;
-        const base: LiveBetSnapshot = {
-          betId: bet.id,
-          playerId: bet.playerId,
-          amountCents: bet.amount.toCents().toString(),
-          status: snapshotStatus,
-        };
-        if (snapshotStatus === "cashed_out") {
-          const detail = this.lifecycle.getCashoutDetail(bet.id);
-          if (detail) {
-            return { ...base, cashoutMultiplier: detail.multiplier, payoutCents: detail.payoutCents };
-          }
-        }
-        return base;
-      })
-      .filter((b): b is LiveBetSnapshot => b !== null);
-
-    const stateEvent: RoundStateEvent = {
-      type: GAME_WS_EVENT.ROUND_STATE,
-      roundId: round.id,
-      phase,
-      multiplier,
-      ...(bettingEndsAt ? { bettingEndsAt } : {}),
-      ...(bets.length > 0 ? { bets } : {}),
-    };
+    const stateEvent = buildRoundStateEvent(
+      round,
+      this.lifecycle.getCurrentMultiplier(),
+      this.lifecycle.getCurrentBettingEndsAt(),
+      (betId) => this.lifecycle.getCashoutDetail(betId),
+    );
 
     this.sendTo(client, stateEvent);
   }

@@ -2,11 +2,17 @@ import { Module } from "@nestjs/common";
 import { GetRoundVerificationUseCase } from "./application/use-cases/get-round-verification.use-case";
 import { PlaceBetUseCase } from "./application/use-cases/place-bet.use-case";
 import { CashoutUseCase } from "./application/use-cases/cashout.use-case";
+import { HandleWalletDebitedUseCase } from "./application/use-cases/handle-wallet-debited.use-case";
+import { HandleWalletDebitFailedUseCase } from "./application/use-cases/handle-wallet-debit-failed.use-case";
 import { RoundLifecycleService } from "./application/services/round-lifecycle.service";
 import type { IRoundRepository } from "./domain/ports/round-repository.port";
 import { InMemoryRoundRepository } from "./infrastructure/persistence/in-memory-round-repository";
-import { InMemoryEventPublisher } from "./infrastructure/messaging/in-memory-event-publisher";
+import { InMemoryInbox } from "./infrastructure/messaging/in-memory-inbox";
 import { InMemoryOutbox } from "./infrastructure/messaging/in-memory-outbox";
+import { RabbitMqCommandPublisher } from "./infrastructure/messaging/rabbitmq-command-publisher";
+import { RabbitMqWalletEventsConsumer } from "./infrastructure/messaging/rabbitmq-wallet-events-consumer";
+import { JwtAuthGuard } from "./infrastructure/auth/jwt-auth.guard";
+import { JwtVerifierService } from "./infrastructure/auth/jwt-verifier.service";
 import { GamesController } from "./presentation/controllers/games.controller";
 import { BetsController } from "./presentation/controllers/bets.controller";
 import { GameGateway } from "./presentation/gateways/game.gateway";
@@ -19,14 +25,15 @@ import { GameGateway } from "./presentation/gateways/game.gateway";
       useValue: new InMemoryRoundRepository(),
     },
     {
-      provide: InMemoryEventPublisher,
-      useValue: new InMemoryEventPublisher(),
+      provide: InMemoryInbox,
+      useValue: new InMemoryInbox(),
     },
+    RabbitMqCommandPublisher,
     {
       provide: InMemoryOutbox,
-      useFactory: (repo: IRoundRepository, pub: InMemoryEventPublisher) =>
+      useFactory: (repo: IRoundRepository, pub: RabbitMqCommandPublisher) =>
         new InMemoryOutbox(repo, pub),
-      inject: [InMemoryRoundRepository, InMemoryEventPublisher],
+      inject: [InMemoryRoundRepository, RabbitMqCommandPublisher],
     },
     {
       provide: RoundLifecycleService,
@@ -50,6 +57,20 @@ import { GameGateway } from "./presentation/gateways/game.gateway";
       useFactory: (repo: IRoundRepository, outbox: InMemoryOutbox) =>
         new CashoutUseCase(repo, outbox),
     },
+    {
+      provide: HandleWalletDebitedUseCase,
+      inject: [InMemoryRoundRepository, InMemoryOutbox],
+      useFactory: (repo: IRoundRepository, outbox: InMemoryOutbox) =>
+        new HandleWalletDebitedUseCase(repo, outbox),
+    },
+    {
+      provide: HandleWalletDebitFailedUseCase,
+      inject: [InMemoryRoundRepository],
+      useFactory: (repo: IRoundRepository) => new HandleWalletDebitFailedUseCase(repo),
+    },
+    JwtVerifierService,
+    JwtAuthGuard,
+    RabbitMqWalletEventsConsumer,
     GameGateway,
   ],
 })

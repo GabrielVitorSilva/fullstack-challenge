@@ -101,6 +101,9 @@ services:
       - "4001:4001"
     env_file:
       - ./services/games/.env.example
+    environment:
+      OIDC_ISSUER: http://localhost:8080/realms/crash-game
+      OIDC_JWKS_URI: http://keycloak:8080/realms/crash-game/protocol/openid-connect/certs
     depends_on:
       postgres:
         condition: service_healthy
@@ -124,6 +127,9 @@ services:
       - "4002:4002"
     env_file:
       - ./services/wallets/.env.example
+    environment:
+      OIDC_ISSUER: http://localhost:8080/realms/crash-game
+      OIDC_JWKS_URI: http://keycloak:8080/realms/crash-game/protocol/openid-connect/certs
     depends_on:
       postgres:
         condition: service_healthy
