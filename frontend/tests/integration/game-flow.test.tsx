@@ -1,15 +1,20 @@
 /**
- * End-to-end tests for the main game flow.
+ * UI integration tests for the main game flow.
  *
- * Renders GamePage with all real child components; mocks only at system
- * boundaries:
- *   - WebSocket (GameSocketService)
- *   - Auth (react-oidc-context via @/auth/useAuth)
+ * Renders the full GamePage component tree (GamePage + all real child
+ * components). Mocks only at system boundaries — no internal component
+ * logic is bypassed:
+ *   - WebSocket transport (GameSocketService)
+ *   - Auth context (react-oidc-context via @/auth/useAuth)
  *   - REST calls (wallets service, game service)
  *
- * These tests validate what the user sees across the full component stack:
- * connection state UI, placing a bet, multiplier ticks, cashout, round history,
- * reconnect reconciliation, and page-reload mid-round reconstruction.
+ * Coverage: what the user sees across the full rendered component tree —
+ * connection state UI, placing a bet, multiplier ticks, cashout, live bets,
+ * round history, reconnect snapshot reconciliation, and page-reload activeBet
+ * reconstruction.
+ *
+ * NOT covered here: real WebSocket transport, real OIDC flow, real HTTP calls,
+ * or multi-service interactions. Those require a running stack.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";

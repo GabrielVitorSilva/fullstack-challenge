@@ -357,8 +357,8 @@ fullstack-challenge/
 ```bash
 cd services/games && bun test tests/unit
 cd services/wallets && bun test tests/unit
-cd services/games && bun test tests/e2e     # requer docker:up
-cd frontend && bun test
+cd services/games && bun test tests/e2e     # integração de serviço (sem Docker)
+cd frontend && npm test
 ```
 
 ---
