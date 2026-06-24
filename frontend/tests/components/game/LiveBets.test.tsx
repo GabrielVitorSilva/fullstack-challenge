@@ -27,13 +27,18 @@ const lostBet: LiveBet = {
 };
 
 describe("LiveBets", () => {
-  it("renders nothing when list is empty", () => {
-    const { container } = render(<LiveBets liveBets={[]} />);
-    expect(container.firstChild).toBeNull();
+  it("renders an empty state when list is empty", () => {
+    render(<LiveBets liveBets={[]} />);
+    expect(screen.getByText(/no bets this round/i)).toBeInTheDocument();
   });
 
   it("renders the accessible section label", () => {
     render(<LiveBets liveBets={[activeBet]} />);
+    expect(screen.getByRole("region", { name: /live bets/i })).toBeInTheDocument();
+  });
+
+  it("renders the accessible section label when empty", () => {
+    render(<LiveBets liveBets={[]} />);
     expect(screen.getByRole("region", { name: /live bets/i })).toBeInTheDocument();
   });
 

@@ -12,7 +12,7 @@ interface Props {
 
 const PHASE_LABEL: Record<GamePhase, string> = {
   BETTING: "Accepting Bets",
-  IN_PROGRESS: "In Progress",
+  IN_PROGRESS: "Live",
   CRASHED: "Crashed",
 };
 
@@ -29,13 +29,25 @@ const MULT_CLASS: Record<GamePhase, string> = {
 };
 
 export function MultiplierDisplay({ phase, multiplier, bettingCountdown, connectionState }: Props) {
+  const isConnected = connectionState === "connected";
+
+  const badgeClass = isConnected ? BADGE_CLASS[phase] : styles.badgeConnecting;
+  const badgeLabel = isConnected
+    ? PHASE_LABEL[phase]
+    : connectionState === "connecting"
+      ? "Connecting…"
+      : "Reconnecting…";
+
   return (
     <div className={styles.display}>
       <div className={styles.header}>
-        <span className={`${styles.badge} ${BADGE_CLASS[phase]}`}>
-          {connectionState === "disconnected" ? "Connecting…" : PHASE_LABEL[phase]}
+        <span className={`${styles.badge} ${badgeClass}`}>
+          {isConnected && phase === "IN_PROGRESS" && (
+            <span className={styles.liveDot} aria-hidden="true" />
+          )}
+          {badgeLabel}
         </span>
-        {phase === "BETTING" && bettingCountdown !== null && connectionState === "connected" && (
+        {isConnected && phase === "BETTING" && bettingCountdown !== null && (
           <span className={styles.countdown}>
             Starting in <strong>{bettingCountdown}s</strong>
           </span>
@@ -51,7 +63,7 @@ export function MultiplierDisplay({ phase, multiplier, bettingCountdown, connect
           >
             {formatMultiplier(multiplier)}
           </span>
-          {phase === "BETTING" && (
+          {phase === "BETTING" && isConnected && (
             <span className={styles.phaseHint}>Place your bets</span>
           )}
           {phase === "CRASHED" && (
@@ -60,6 +72,12 @@ export function MultiplierDisplay({ phase, multiplier, bettingCountdown, connect
             </span>
           )}
         </div>
+        {!isConnected && (
+          <div className={styles.connectingOverlay} aria-live="polite">
+            <div className={styles.connectingSpinner} aria-hidden="true" />
+            <span className={styles.connectingLabel}>{badgeLabel}</span>
+          </div>
+        )}
       </div>
     </div>
   );

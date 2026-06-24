@@ -12,30 +12,38 @@ function truncatePlayerId(playerId: string): string {
 }
 
 export function LiveBets({ liveBets }: Props) {
-  if (liveBets.length === 0) return null;
-
   return (
     <section className={styles.section} aria-label="Live bets">
-      <span className={styles.label}>Live bets</span>
-      <ul className={styles.list} role="list">
-        {liveBets.map((bet) => (
-          <li key={bet.betId} className={`${styles.row} ${styles[bet.status]}`} role="listitem">
-            <span className={styles.player} title={bet.playerId}>
-              {truncatePlayerId(bet.playerId)}
-            </span>
-            <span className={styles.amount}>${bigintCentsToDisplay(bet.amountCents)}</span>
-            {bet.status === "cashed_out" && bet.cashoutMultiplier !== undefined && bet.payoutCents !== undefined ? (
-              <span className={styles.payout}>
-                {formatMultiplier(bet.cashoutMultiplier)} · ${bigintCentsToDisplay(bet.payoutCents)}
+      <div className={styles.sectionHeader}>
+        <span className={styles.label}>Live bets</span>
+        {liveBets.length > 0 && (
+          <span className={styles.count}>{liveBets.length}</span>
+        )}
+      </div>
+
+      {liveBets.length === 0 ? (
+        <p className={styles.empty}>No bets this round yet</p>
+      ) : (
+        <ul className={styles.list} role="list">
+          {liveBets.map((bet) => (
+            <li key={bet.betId} className={`${styles.row} ${styles[bet.status]}`} role="listitem">
+              <span className={styles.player} title={bet.playerId}>
+                {truncatePlayerId(bet.playerId)}
               </span>
-            ) : (
-              <span className={`${styles.badge} ${styles[`badge_${bet.status}`]}`}>
-                {bet.status === "active" ? "Active" : "Lost"}
-              </span>
-            )}
-          </li>
-        ))}
-      </ul>
+              <span className={styles.amount}>${bigintCentsToDisplay(bet.amountCents)}</span>
+              {bet.status === "cashed_out" && bet.cashoutMultiplier !== undefined && bet.payoutCents !== undefined ? (
+                <span className={styles.payout}>
+                  {formatMultiplier(bet.cashoutMultiplier)} · ${bigintCentsToDisplay(bet.payoutCents)}
+                </span>
+              ) : (
+                <span className={`${styles.badge} ${styles[`badge_${bet.status}`]}`}>
+                  {bet.status === "active" ? "Active" : "Lost"}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

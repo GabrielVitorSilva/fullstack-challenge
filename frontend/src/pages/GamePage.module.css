@@ -5,6 +5,34 @@
   min-height: 100%;
 }
 
+/* ── Connection banner ───────────────────────────────────── */
+.connectionBanner {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.625rem 1rem;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: 0.625rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.connectionBannerDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-border);
+  flex-shrink: 0;
+  animation: connectingBlink 1.2s ease-in-out infinite;
+}
+
+@keyframes connectingBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* ── Game area ───────────────────────────────────────────── */
 .gameArea {
   display: grid;
   grid-template-columns: 1fr 300px;
@@ -13,8 +41,21 @@
   align-items: start;
 }
 
+/* ── Bottom section ──────────────────────────────────────── */
+.bottomGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+/* ── Responsive ──────────────────────────────────────────── */
 @media (max-width: 800px) {
   .gameArea {
+    grid-template-columns: 1fr;
+  }
+
+  .bottomGrid {
     grid-template-columns: 1fr;
   }
 }

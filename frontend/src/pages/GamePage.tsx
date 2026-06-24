@@ -28,8 +28,19 @@ export function GamePage() {
     refetchWallet();
   }
 
+  const isDisconnected = game.connectionState !== "connected";
+
   return (
     <div className={styles.page}>
+      {isDisconnected && (
+        <div className={styles.connectionBanner} role="status" aria-live="polite">
+          <span className={styles.connectionBannerDot} aria-hidden="true" />
+          {game.connectionState === "connecting"
+            ? "Connecting to game server…"
+            : "Connection lost. Reconnecting…"}
+        </div>
+      )}
+
       <div className={styles.gameArea}>
         <MultiplierDisplay
           phase={game.phase}
@@ -51,8 +62,11 @@ export function GamePage() {
           cashoutMultiplier={game.multiplier}
         />
       </div>
-      <LiveBets liveBets={game.liveBets} />
-      <RoundHistory history={game.history} />
+
+      <div className={styles.bottomGrid}>
+        <LiveBets liveBets={game.liveBets} />
+        <RoundHistory history={game.history} />
+      </div>
     </div>
   );
 }

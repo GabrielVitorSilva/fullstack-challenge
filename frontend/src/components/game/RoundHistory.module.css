@@ -57,3 +57,10 @@
   background: rgba(62, 207, 107, 0.08);
   border-color: rgba(62, 207, 107, 0.25);
 }
+
+/* ── Empty state ─────────────────────────────────────────── */
+.empty {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  padding: 0.25rem 0;
+}
