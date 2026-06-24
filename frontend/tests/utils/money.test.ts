@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { centsToDisplay } from "@/utils/money";
+import { centsToDisplay, bigintCentsToDisplay, decimalDollarsToCents } from "@/utils/money";
 
 describe("centsToDisplay", () => {
   it("converts zero", () => {
@@ -24,5 +24,59 @@ describe("centsToDisplay", () => {
 
   it("truncates floating-point input", () => {
     expect(centsToDisplay(100.9)).toBe("1.00");
+  });
+});
+
+describe("bigintCentsToDisplay", () => {
+  it("converts zero", () => {
+    expect(bigintCentsToDisplay(0n)).toBe("0.00");
+  });
+
+  it("converts a whole-dollar amount", () => {
+    expect(bigintCentsToDisplay(100n)).toBe("1.00");
+  });
+
+  it("pads fractional cents", () => {
+    expect(bigintCentsToDisplay(105n)).toBe("1.05");
+  });
+
+  it("handles large amounts", () => {
+    expect(bigintCentsToDisplay(123456n)).toBe("1234.56");
+  });
+
+  it("handles negative amounts", () => {
+    expect(bigintCentsToDisplay(-500n)).toBe("-5.00");
+  });
+});
+
+describe("decimalDollarsToCents", () => {
+  it("parses whole dollar amounts", () => {
+    expect(decimalDollarsToCents("10")).toBe(1000n);
+  });
+
+  it("parses two decimal places exactly", () => {
+    expect(decimalDollarsToCents("10.25")).toBe(1025n);
+  });
+
+  it("pads one decimal place", () => {
+    expect(decimalDollarsToCents("10.2")).toBe(1020n);
+  });
+
+  it("accepts a trailing decimal separator", () => {
+    expect(decimalDollarsToCents("10.")).toBe(1000n);
+  });
+
+  it("accepts comma as decimal separator", () => {
+    expect(decimalDollarsToCents("10,25")).toBe(1025n);
+  });
+
+  it("rejects more than two decimal places", () => {
+    expect(decimalDollarsToCents("10.999")).toBeNull();
+  });
+
+  it("rejects invalid values", () => {
+    expect(decimalDollarsToCents("abc")).toBeNull();
+    expect(decimalDollarsToCents("-1.00")).toBeNull();
+    expect(decimalDollarsToCents("")).toBeNull();
   });
 });

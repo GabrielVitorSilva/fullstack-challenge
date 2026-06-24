@@ -6,9 +6,8 @@ import {
 } from "@nestjs/websockets";
 import { Server, WebSocket } from "ws";
 import { RoundLifecycleService } from "../../application/services/round-lifecycle.service";
-import type { GameWsEvent, RoundStateEvent } from "../../domain/game-events";
-import { GAME_WS_EVENT } from "../../domain/game-events";
-import { RoundStatus } from "../../domain/round-status";
+import type { GameWsEvent } from "../../domain/game-events";
+import { buildRoundStateEvent } from "../mappers/round-state.mapper";
 
 // Kong strips the "/games" prefix before forwarding to this service,
 // so the gateway must listen at "/ws" (not "/games/ws").
@@ -28,23 +27,12 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection {
     const round = this.lifecycle.getCurrentRound();
     if (!round) return;
 
-    const multiplier = this.lifecycle.getCurrentMultiplier();
-    const bettingEndsAt = this.lifecycle.getCurrentBettingEndsAt();
-
-    const phase =
-      round.status === RoundStatus.BETTING
-        ? "BETTING"
-        : round.status === RoundStatus.IN_PROGRESS
-          ? "IN_PROGRESS"
-          : "CRASHED";
-
-    const stateEvent: RoundStateEvent = {
-      type: GAME_WS_EVENT.ROUND_STATE,
-      roundId: round.id,
-      phase,
-      multiplier,
-      ...(bettingEndsAt ? { bettingEndsAt } : {}),
-    };
+    const stateEvent = buildRoundStateEvent(
+      round,
+      this.lifecycle.getCurrentMultiplier(),
+      this.lifecycle.getCurrentBettingEndsAt(),
+      (betId) => this.lifecycle.getCashoutDetail(betId),
+    );
 
     this.sendTo(client, stateEvent);
   }

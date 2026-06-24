@@ -9,6 +9,8 @@
     "docker:up": "docker compose up",
     "docker:down": "docker compose down",
     "docker:prune": "docker compose down -v --rmi all --remove-orphans && docker volume prune -f",
+    "test:e2e:service": "bun test services/games/tests/e2e",
+    "test:e2e:stack": "RUN_STACK_E2E=true bun test tests/e2e/stack-flow.spec.ts",
     "frontend:dev": "npm --prefix frontend run dev",
     "frontend:test": "npm --prefix frontend run test",
     "frontend:build": "npm --prefix frontend run build"

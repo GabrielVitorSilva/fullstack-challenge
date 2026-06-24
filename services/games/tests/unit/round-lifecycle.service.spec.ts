@@ -140,6 +140,68 @@ describe("RoundLifecycleService lifecycle", () => {
     expect(evt.payoutCents).toBe("1500");
   });
 
+  it("getCashoutDetail returns undefined before any cashout", () => {
+    const { service } = buildService();
+    expect(service.getCashoutDetail("bet-unknown")).toBeUndefined();
+  });
+
+  it("getCashoutDetail returns detail after broadcastCashout", async () => {
+    service.onModuleInit();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const round = service.getCurrentRound()!;
+    service.broadcastCashout({
+      roundId: round.id,
+      betId: "bet-42",
+      playerId: "player-1",
+      multiplier: 2.5,
+      payoutCents: "2500",
+    });
+
+    const detail = service.getCashoutDetail("bet-42");
+    expect(detail).toBeDefined();
+    expect(detail?.multiplier).toBe(2.5);
+    expect(detail?.payoutCents).toBe("2500");
+  });
+
+  it("getCashoutDetail returns undefined for a different betId", async () => {
+    service.onModuleInit();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const round = service.getCurrentRound()!;
+    service.broadcastCashout({
+      roundId: round.id,
+      betId: "bet-A",
+      playerId: "player-1",
+      multiplier: 2.0,
+      payoutCents: "2000",
+    });
+
+    expect(service.getCashoutDetail("bet-B")).toBeUndefined();
+  });
+
+  it("clears cashout detail cache when a new betting phase begins", async () => {
+    service.onModuleInit();
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Populate the in-memory cache
+    service.broadcastCashout({
+      roundId: service.getCurrentRound()!.id,
+      betId: "bet-to-clear",
+      playerId: "player-1",
+      multiplier: 3.0,
+      payoutCents: "3000",
+    });
+    expect(service.getCashoutDetail("bet-to-clear")).toBeDefined();
+
+    // Directly invoke the private method to simulate a new round starting.
+    // This is valid in a test: we need to verify the clear() call in beginBettingPhase
+    // happens before new snapshot data is served to late-joining clients.
+    await (service as Record<string, ((...args: unknown[]) => Promise<void>)>)["beginBettingPhase"]();
+
+    expect(service.getCashoutDetail("bet-to-clear")).toBeUndefined();
+  });
+
   it("saves round to repository on start", async () => {
     service.onModuleInit();
     await new Promise((r) => setTimeout(r, 10));

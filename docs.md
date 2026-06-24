@@ -721,7 +721,7 @@ cd services/games
 # Testes unitários (não requerem Docker)
 bun test tests/unit
 
-# Testes E2E (requerem docker:up)
+# Testes de integração de serviço (não requerem Docker)
 bun test tests/e2e
 ```
 
@@ -739,6 +739,14 @@ Cobertura atual (`tests/unit`):
 | `handle-wallet-debit-failed.use-case.spec.ts` | Falha de débito, late-arrival |
 | `idempotency.spec.ts` | VOIDED_COMPENSATED após restart |
 | `get-round-verification.use-case.spec.ts` | Endpoint de verificação provably fair |
+| `game.gateway.spec.ts` | Snapshot round.state no handleConnection |
+| `round-lifecycle.service.spec.ts` | Fases da rodada, tick, broadcast |
+
+Cobertura atual (`tests/e2e` — integração de serviço, sem Docker):
+
+| Arquivo | O que testa |
+|---|---|
+| `bet-lifecycle.spec.ts` | Controller → use cases → domínio → outbox: aposta, confirmação de débito, cashout, idempotência |
 
 ### Backend — Wallet Service
 
@@ -762,11 +770,30 @@ npm test         # execução única
 npm run test:watch  # modo watch
 ```
 
+Testes unitários de utilitários e serviços:
+
 | Arquivo | O que testa |
 |---|---|
 | `utils/money.test.ts` | centsToDisplay: zero, inteiros, frações, negativos |
+| `utils/game.test.ts` | formatMultiplier, multiplierTier |
 | `services/api.test.ts` | Bearer header, ApiError, parse JSON |
 | `services/wallets.test.ts` | Endpoint correto `/wallets/me`, tipagem |
+| `services/buildWsUrl.test.ts` | Construção da URL do WebSocket |
+| `services/gameSocket.test.ts` | Reconexão exponencial, dedup de eventos |
+
+Testes unitários de hook e componentes:
+
+| Arquivo | O que testa |
+|---|---|
+| `hooks/useGame.test.ts` | Reducer de estado, eventos WS, reconciliação de snapshot, reconstrução de activeBet |
+| `components/game/LiveBets.test.tsx` | Renderização de bets ativo/cashed_out/lost, estado vazio |
+| `components/game/RoundHistory.test.tsx` | Badges de histórico, estado vazio |
+
+Testes de integração de UI (árvore completa de componentes, fronteiras mockadas):
+
+| Arquivo | O que testa |
+|---|---|
+| `integration/game-flow.test.tsx` | GamePage completo: conexão, aposta, multiplier, cashout, histórico, reconexão, reload |
 
 ### Contratos
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/auth/useAuth";
 import { getWallet } from "@/services/wallets";
-import { centsToDisplay } from "@/utils/money";
+import { bigintCentsToDisplay } from "@/utils/money";
 
 interface WalletState {
   balance: string;
@@ -29,7 +29,7 @@ export function useWallet(): WalletState {
     getWallet(accessToken)
       .then((wallet) => {
         if (!cancelled) {
-          setBalance(centsToDisplay(wallet.balanceCents));
+          setBalance(bigintCentsToDisplay(BigInt(wallet.balanceCents)));
           setIsLoading(false);
         }
       })

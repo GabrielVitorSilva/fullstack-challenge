@@ -11,7 +11,7 @@ beforeEach(() => {
 
 describe("getWallet", () => {
   it("calls GET /wallets/me with Bearer token", async () => {
-    const payload = { id: "w1", userId: "u1", balanceCents: 5000 };
+    const payload = { id: "w1", userId: "u1", balanceCents: "5000" };
     mockFetch.mockResolvedValueOnce({
       ok: true,
       text: async () => JSON.stringify(payload),
@@ -27,7 +27,7 @@ describe("getWallet", () => {
   });
 
   it("returns typed WalletResponse on success", async () => {
-    const payload = { id: "w1", userId: "u1", balanceCents: 12345 };
+    const payload = { id: "w1", userId: "u1", balanceCents: "12345" };
     mockFetch.mockResolvedValueOnce({
       ok: true,
       text: async () => JSON.stringify(payload),
@@ -37,6 +37,6 @@ describe("getWallet", () => {
 
     expect(result.id).toBe("w1");
     expect(result.userId).toBe("u1");
-    expect(result.balanceCents).toBe(12345);
+    expect(result.balanceCents).toBe("12345");
   });
 });

@@ -163,6 +163,54 @@
   cursor: not-allowed;
 }
 
+/* ── Bet placed banner ───────────────────────────────────── */
+.betPlacedBanner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 0.875rem;
+  background: rgba(62, 207, 107, 0.08);
+  border: 1px solid rgba(62, 207, 107, 0.25);
+  border-radius: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-success);
+}
+
+.betPlacedIcon {
+  font-size: 1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* ── Potential win ───────────────────────────────────────── */
+.potentialWin {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 0.875rem;
+  background: rgba(62, 207, 107, 0.05);
+  border: 1px solid rgba(62, 207, 107, 0.2);
+  border-radius: 0.5rem;
+  gap: 0.5rem;
+}
+
+.potentialWinLabel {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.potentialWinValue {
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--color-success);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ── Actions ─────────────────────────────────────────────── */
 .actions {
   display: flex;
@@ -189,6 +237,10 @@
   transform: translateY(-1px);
 }
 
+.betButton:active:not(:disabled) {
+  transform: translateY(0);
+}
+
 .betButton:disabled {
   opacity: 0.35;
   cursor: not-allowed;
@@ -196,20 +248,31 @@
 }
 
 .cashoutButton {
-  padding: 0.75rem;
+  padding: 0.875rem;
   background: transparent;
   color: var(--color-success);
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 700;
   border: 1px solid rgba(62, 207, 107, 0.4);
   border-radius: 0.625rem;
   cursor: pointer;
   letter-spacing: 0.02em;
-  transition: background 0.15s, opacity 0.15s;
+  transition: background 0.15s, opacity 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.cashoutButtonActive {
+  background: rgba(62, 207, 107, 0.1);
+  border-color: rgba(62, 207, 107, 0.6);
+  animation: cashoutPulse 2s ease-in-out infinite;
+}
+
+@keyframes cashoutPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(62, 207, 107, 0.3); }
+  50% { box-shadow: 0 0 0 5px rgba(62, 207, 107, 0); }
 }
 
 .cashoutButton:hover:not(:disabled) {
-  background: rgba(62, 207, 107, 0.08);
+  background: rgba(62, 207, 107, 0.15);
 }
 
 .cashoutButton:disabled {
@@ -219,4 +282,5 @@
 
 .cashoutMultiplier {
   font-family: var(--font-mono);
+  opacity: 0.85;
 }

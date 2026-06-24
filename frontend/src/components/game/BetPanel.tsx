@@ -33,6 +33,11 @@ export function BetPanel({
 }: Props) {
   const canBet = phase === "BETTING" && !hasPendingBet;
   const canCashout = phase === "IN_PROGRESS" && hasPendingBet;
+  const isBetPlaced = phase === "BETTING" && hasPendingBet;
+
+  const potentialWin = canCashout
+    ? (parseFloat(betAmount) * cashoutMultiplier).toFixed(2)
+    : null;
 
   function handleQuickAdd(amount: number) {
     const current = parseFloat(betAmount) || 0;
@@ -116,6 +121,22 @@ export function BetPanel({
         </div>
       </div>
 
+      {/* Bet placed confirmation (waiting for round to start) */}
+      {isBetPlaced && (
+        <div className={styles.betPlacedBanner} role="status">
+          <span className={styles.betPlacedIcon} aria-hidden="true">✓</span>
+          <span>Bet placed — waiting for round to start</span>
+        </div>
+      )}
+
+      {/* Potential win (live during round) */}
+      {potentialWin !== null && (
+        <div className={styles.potentialWin}>
+          <span className={styles.potentialWinLabel}>Potential win</span>
+          <span className={styles.potentialWinValue}>${potentialWin}</span>
+        </div>
+      )}
+
       <div className={styles.actions}>
         <button
           className={styles.betButton}
@@ -127,7 +148,7 @@ export function BetPanel({
         </button>
 
         <button
-          className={styles.cashoutButton}
+          className={`${styles.cashoutButton} ${canCashout ? styles.cashoutButtonActive : ""}`}
           onClick={onCashout}
           disabled={!canCashout}
           type="button"

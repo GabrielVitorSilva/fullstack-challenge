@@ -22,9 +22,14 @@ describe("RoundHistory", () => {
     expect(screen.getByRole("region", { name: /recent rounds/i })).toBeInTheDocument();
   });
 
-  it("renders nothing when history is empty", () => {
-    const { container } = render(<RoundHistory history={[]} />);
-    expect(container.firstChild).toBeNull();
+  it("renders an empty state when history is empty", () => {
+    render(<RoundHistory history={[]} />);
+    expect(screen.getByText(/no rounds yet/i)).toBeInTheDocument();
+  });
+
+  it("renders the accessible section label when empty", () => {
+    render(<RoundHistory history={[]} />);
+    expect(screen.getByRole("region", { name: /recent rounds/i })).toBeInTheDocument();
   });
 
   it("renders one listitem per round", () => {
