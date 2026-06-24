@@ -11,6 +11,17 @@ function truncatePlayerId(playerId: string): string {
   return playerId.length > 12 ? `${playerId.slice(0, 6)}…${playerId.slice(-4)}` : playerId;
 }
 
+function getStatusLabel(status: LiveBet["status"]): string {
+  switch (status) {
+    case "active":
+      return "Active";
+    case "cashed_out":
+      return "Cashed out";
+    case "lost":
+      return "Lost";
+  }
+}
+
 export function LiveBets({ liveBets }: Props) {
   return (
     <section className={styles.section} aria-label="Live bets">
@@ -37,7 +48,7 @@ export function LiveBets({ liveBets }: Props) {
                 </span>
               ) : (
                 <span className={`${styles.badge} ${styles[`badge_${bet.status}`]}`}>
-                  {bet.status === "active" ? "Active" : "Lost"}
+                  {getStatusLabel(bet.status)}
                 </span>
               )}
             </li>

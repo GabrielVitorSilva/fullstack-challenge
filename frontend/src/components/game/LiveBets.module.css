@@ -96,6 +96,11 @@
   background: var(--color-surface-raised);
 }
 
+.badge_cashed_out {
+  color: var(--color-success);
+  background: rgba(62, 207, 107, 0.12);
+}
+
 /* ── Empty state ─────────────────────────────────────────── */
 .empty {
   padding: 1.25rem 0.75rem;

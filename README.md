@@ -10,6 +10,30 @@ Não esperamos perfeição — esperamos raciocínio claro, código limpo e deci
 
 ---
 
+## Estado da Implementação Atual ✅
+
+> Esta seção documenta a entrega deste repositório. As próximas seções preservam o enunciado original do desafio para manter o contexto completo da avaliação.
+
+### Implementado
+
+- Monorepo com Bun workspaces para `services/*` e `packages/*`.
+- `@crash/contracts` com contratos compartilhados para comandos/eventos entre Game e Wallet.
+- Game Service com DDD, ciclo de rodada em memória, apostas, cashout, crash, WebSocket e provably fair.
+- Wallet Service com domínio de carteira, precisão monetária em centavos inteiros e use cases de débito/crédito testados.
+- Frontend Vite + React com login OIDC via Keycloak, tela principal do jogo, gráfico, controles, live bets, histórico, estados de loading/erro e layout responsivo.
+- Docker Compose com PostgreSQL, RabbitMQ, Keycloak, Kong, serviços backend e frontend.
+- Testes unitários de domínio/use cases, integração de serviço no Game Service e testes de componentes/integração de UI no frontend.
+
+### Trade-offs conhecidos
+
+- PostgreSQL e RabbitMQ estão provisionados no Docker, mas os serviços ainda usam repositórios, outbox e publisher em memória.
+- Os contratos e use cases de integração Game/Wallet existem, mas os consumidores/produtores reais de RabbitMQ ainda não estão conectados no runtime.
+- A validação de JWT no backend ainda não foi aplicada aos endpoints protegidos.
+- A cobertura atual não inclui E2E browser/API real com Docker; o frontend usa testes de integração com mocks controlados.
+- O Wallet Service expõe `GET /wallets/me` com saldo inicial em memória; criação de carteira, lançamentos HTTP e persistência ficam como próximos passos.
+
+---
+
 ## Visão Geral 📖
 
 Um **Crash Game** é um jogo de cassino multiplayer em tempo real: um multiplicador sobe a partir de `1.00x` e pode "crashar" a qualquer momento. Jogadores apostam antes da rodada e precisam sacar (cash out) antes do crash para garantir os ganhos — caso contrário, perdem a aposta.
@@ -42,7 +66,7 @@ Você deve construir o **backend** (engine do jogo, carteira, comunicação em t
 ```
                         ┌──────────────────────────┐
                         │        Frontend           │
-                        │   (React + Tailwind CSS)  │
+                        │   (React + CSS Modules)   │
                         └─────┬────────────┬────────┘
                            HTTP/REST    WebSocket
                               │            │
@@ -231,9 +255,9 @@ O realm `crash-game` é importado automaticamente no `docker:up`. Nenhuma config
 | Usuário teste  | `player` / `player123`                                                     |
 | OIDC discovery | `http://localhost:8080/realms/crash-game/.well-known/openid-configuration` |
 
-### Scaffold dos serviços de aplicação
+### Serviços de aplicação
 
-**Backend — pronto.** Ambos os serviços já possuem scaffold NestJS funcional com estrutura DDD e rota `GET /health`. Estão integrados ao `docker-compose.yml` e roteados pelo Kong.
+**Backend — implementado.** Ambos os serviços possuem NestJS funcional com estrutura DDD, rota `GET /health`, Dockerfile próprio e roteamento via Kong.
 
 | Serviço        | Porta direta | Via Kong                          |
 | -------------- | ------------ | --------------------------------- |
@@ -243,22 +267,16 @@ O realm `crash-game` é importado automaticamente no `docker:up`. Nenhuma config
 Cada serviço tem:
 
 - Estrutura de camadas DDD: `domain/`, `application/`, `infrastructure/`, `presentation/`
-- `tests/unit/` e `tests/e2e/` prontos para receber os testes
-- `packages/` na raiz do monorepo para pacotes compartilhados entre serviços (ex: `@crash/eslint`)
+- Testes unitários em `tests/unit/`; o Game Service também possui integração de serviço em `tests/e2e/`
+- `packages/contracts` na raiz do monorepo para contratos compartilhados entre serviços
 
-**Frontend — a implementar.** A pasta `frontend/` existe mas o scaffold é responsabilidade do candidato. Use o framework de sua preferência:
-
-- **Vite + React** — opção mais leve, ideal se quiser controle total
-- **Next.js** — SSR out-of-the-box, boa escolha para SEO e rotas
-- **TanStack Start** — preferido na stack da Jungle Gaming
-
-O placeholder no `docker-compose.yml` está comentado — descomente e adapte com seu `Dockerfile` e porta após criar o scaffold.
+**Frontend — implementado.** A pasta `frontend/` usa Vite + React, CSS Modules, Vitest e Dockerfile com build estático servido por nginx.
 
 ### Variáveis de ambiente
 
 As credenciais de infraestrutura (PostgreSQL, RabbitMQ, Keycloak) estão hardcoded no `docker-compose.yml` — são valores de desenvolvimento local, sem necessidade de `.env` no root.
 
-Cada serviço possui `.env.example` com as variáveis necessárias. Copie para `.env` antes de rodar fora do Docker:
+Cada serviço possui `.env.example` com as variáveis necessárias. O Docker Compose usa esses arquivos diretamente para permitir `bun run docker:up` sem passo manual. Copie para `.env` somente se quiser rodar os serviços fora do Docker:
 
 ```bash
 cp services/games/.env.example services/games/.env
@@ -297,7 +315,7 @@ fullstack-challenge/
 │   │   │   └── presentation/
 │   │   ├── tests/ (unit/ + e2e/)
 │   │   ├── Dockerfile
-│   │   ├── .env
+│   │   ├── .env.example
 │   │   └── package.json
 │   └── wallets/
 │       ├── src/
@@ -307,13 +325,12 @@ fullstack-challenge/
 │       │   ├── application/
 │       │   ├── infrastructure/
 │       │   └── presentation/
-│       ├── tests/ (unit/ + e2e/)
+│       ├── tests/ (unit/)
 │       ├── Dockerfile
-│       ├── .env
+│       ├── .env.example
 │       └── package.json
-├── packages/                          # Pacotes compartilhados entre serviços
-│   │                                  # Ex: @crash/eslint
-│   └── (pacotes serão adicionados aqui)
+├── packages/
+│   └── contracts/                     # Contratos compartilhados entre serviços
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
@@ -322,7 +339,6 @@ fullstack-challenge/
 │   │   ├── services/
 │   │   └── stores/
 │   ├── Dockerfile
-│   ├── .env
 │   └── package.json
 ├── docker/
 │   ├── kong/kong.yml
@@ -337,7 +353,7 @@ fullstack-challenge/
 
 ## Testes 🧪
 
-### Obrigatórios
+### Escopo esperado pelo desafio
 
 **Unitários (camada de domínio):**
 
@@ -352,16 +368,16 @@ fullstack-challenge/
 - Apostar → crash → aposta perdida
 - Erros de validação (saldo insuficiente, aposta dupla, aposta durante rodada ativa)
 
-### Comandos
+### Comandos validados nesta entrega
 
 ```bash
+cd packages/contracts && bun test tests/unit
 cd services/games && bun test tests/unit
 cd services/wallets && bun test tests/unit
 cd services/games && bun test tests/e2e     # integração de serviço (sem Docker)
 cd frontend && npm test
+cd frontend && npm run build
 ```
-
----
 
 ---
 

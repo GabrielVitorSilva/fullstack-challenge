@@ -26,6 +26,13 @@ const lostBet: LiveBet = {
   status: "lost",
 };
 
+const cashedOutWithoutDetailsBet: LiveBet = {
+  betId: "b-4",
+  playerId: "player-cashed",
+  amountCents: 1500n,
+  status: "cashed_out",
+};
+
 describe("LiveBets", () => {
   it("renders an empty state when list is empty", () => {
     render(<LiveBets liveBets={[]} />);
@@ -66,6 +73,12 @@ describe("LiveBets", () => {
     render(<LiveBets liveBets={[cashedOutBet]} />);
     expect(screen.getByText(/3\.50×/)).toBeInTheDocument();
     expect(screen.getByText(/\$70\.00/)).toBeInTheDocument();
+  });
+
+  it("shows Cashed out badge when payout details are not available", () => {
+    render(<LiveBets liveBets={[cashedOutWithoutDetailsBet]} />);
+    expect(screen.getByText("Cashed out")).toBeInTheDocument();
+    expect(screen.queryByText("Lost")).not.toBeInTheDocument();
   });
 
   it("truncates long player IDs", () => {

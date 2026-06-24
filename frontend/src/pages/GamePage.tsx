@@ -5,6 +5,7 @@ import { MultiplierDisplay } from "@/components/game/MultiplierDisplay";
 import { BetPanel } from "@/components/game/BetPanel";
 import { RoundHistory } from "@/components/game/RoundHistory";
 import { LiveBets } from "@/components/game/LiveBets";
+import { decimalDollarsToCents } from "@/utils/money";
 import styles from "./GamePage.module.css";
 
 export function GamePage() {
@@ -15,10 +16,8 @@ export function GamePage() {
   const [autoCashout, setAutoCashout] = useState("2.00");
 
   function handlePlaceBet() {
-    const dollars = parseFloat(betAmount);
-    if (!Number.isFinite(dollars) || dollars <= 0) return;
-    // Convert to cents without floating-point arithmetic
-    const cents = BigInt(Math.round(dollars * 100));
+    const cents = decimalDollarsToCents(betAmount);
+    if (cents === null || cents <= 0n) return;
     game.placeBet(cents);
     refetchWallet();
   }
