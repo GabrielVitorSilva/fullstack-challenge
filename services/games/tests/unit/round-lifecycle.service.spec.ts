@@ -180,6 +180,28 @@ describe("RoundLifecycleService lifecycle", () => {
     expect(service.getCashoutDetail("bet-B")).toBeUndefined();
   });
 
+  it("clears cashout detail cache when a new betting phase begins", async () => {
+    service.onModuleInit();
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Populate the in-memory cache
+    service.broadcastCashout({
+      roundId: service.getCurrentRound()!.id,
+      betId: "bet-to-clear",
+      playerId: "player-1",
+      multiplier: 3.0,
+      payoutCents: "3000",
+    });
+    expect(service.getCashoutDetail("bet-to-clear")).toBeDefined();
+
+    // Directly invoke the private method to simulate a new round starting.
+    // This is valid in a test: we need to verify the clear() call in beginBettingPhase
+    // happens before new snapshot data is served to late-joining clients.
+    await (service as Record<string, ((...args: unknown[]) => Promise<void>)>)["beginBettingPhase"]();
+
+    expect(service.getCashoutDetail("bet-to-clear")).toBeUndefined();
+  });
+
   it("saves round to repository on start", async () => {
     service.onModuleInit();
     await new Promise((r) => setTimeout(r, 10));

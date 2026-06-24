@@ -58,7 +58,7 @@ interface InternalState {
 }
 
 type Action =
-  | { type: "WS_EVENT"; event: GameServerEvent }
+  | { type: "WS_EVENT"; event: GameServerEvent; userId: string | null }
   | { type: "CONNECTION_STATE"; state: ConnectionState }
   | { type: "BET_PLACED"; betId: string; amountCents: bigint }
   | { type: "BET_PLACE_FAILED" }
@@ -112,29 +112,48 @@ function reconcileLiveBets(snapshotBets: LiveBetSnapshot[], localBets: LiveBet[]
 }
 
 /**
- * Reconciles activeBet against the server snapshot on reconnect.
+ * Reconciles activeBet against the server snapshot on reconnect or page reload.
  *
- * The server snapshot is authoritative: if the bet no longer appears (debit
- * failed / voided) or is in a terminal state (lost), activeBet is cleared.
- * If the bet cashed out while the client was disconnected, cashedOut is set.
- * If the snapshot still shows the bet as active, any optimistic cashedOut is
- * reset — the server hasn't confirmed the cashout yet.
- * When the snapshot is absent (no bets field, old backend), activeBet is
+ * The server snapshot is authoritative. When activeBet already exists locally:
+ * clear it on new round; clear if the bet is gone or lost; set cashedOut from
+ * snapshot status; reset optimistic cashedOut if snapshot still shows active.
+ *
+ * When activeBet is null (page reload / fresh connection): try to reconstruct
+ * it from the snapshot using playerId so the user doesn't lose their active
+ * bet state after a reload. Lost bets are never reconstructed — the round
+ * already ended for the user.
+ *
+ * When the snapshot field is absent (old backend / no bets), activeBet is
  * kept as-is since we have no information to override it with.
  */
 function reconcileActiveBet(
   activeBet: ActiveBet | null,
   snapshotBets: LiveBetSnapshot[] | undefined,
   isNewRound: boolean,
+  userId: string | null,
 ): ActiveBet | null {
-  if (isNewRound) return null;
-  if (!activeBet) return null;
+  // A known local activeBet from a previous round must always be cleared.
+  if (activeBet && isNewRound) return null;
+  // No snapshot data: keep current state (null or existing).
   if (snapshotBets === undefined) return activeBet;
-  const snapBet = snapshotBets.find((b) => b.betId === activeBet.betId);
-  if (!snapBet || snapBet.status === "lost") return null;
-  if (snapBet.status === "cashed_out") return { ...activeBet, cashedOut: true };
-  // snapshot says active → server hasn't confirmed cashout; reset any optimistic flag
-  return { ...activeBet, cashedOut: false };
+
+  if (activeBet) {
+    const snapBet = snapshotBets.find((b) => b.betId === activeBet.betId);
+    if (!snapBet || snapBet.status === "lost") return null;
+    if (snapBet.status === "cashed_out") return { ...activeBet, cashedOut: true };
+    // snapshot says active → reset any optimistic cashedOut flag
+    return { ...activeBet, cashedOut: false };
+  }
+
+  // activeBet is null (page reload / fresh connection): reconstruct from snapshot.
+  if (!userId) return null;
+  const userBet = snapshotBets.find((b) => b.playerId === userId && b.status !== "lost");
+  if (!userBet) return null;
+  return {
+    betId: userBet.betId,
+    amountCents: BigInt(userBet.amountCents),
+    cashedOut: userBet.status === "cashed_out",
+  };
 }
 
 function reducer(state: InternalState, action: Action): InternalState {
@@ -160,14 +179,14 @@ function reducer(state: InternalState, action: Action): InternalState {
       return { ...state, activeBet: { ...state.activeBet, cashedOut: false } };
 
     case "WS_EVENT":
-      return applyEvent(state, action.event);
+      return applyEvent(state, action.event, action.userId);
 
     default:
       return state;
   }
 }
 
-function applyEvent(state: InternalState, event: GameServerEvent): InternalState {
+function applyEvent(state: InternalState, event: GameServerEvent, userId: string | null): InternalState {
   switch (event.type) {
     case "round.state": {
       const isNewRound = state.roundId !== event.roundId;
@@ -181,7 +200,7 @@ function applyEvent(state: InternalState, event: GameServerEvent): InternalState
         roundId: event.roundId,
         multiplier: event.multiplier,
         bettingEndsAt: event.bettingEndsAt ?? null,
-        activeBet: reconcileActiveBet(state.activeBet, event.bets, isNewRound),
+        activeBet: reconcileActiveBet(state.activeBet, event.bets, isNewRound, userId),
         liveBets,
       };
     }
@@ -282,13 +301,20 @@ export function useGame(): GameState {
 
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
   const socketRef = useRef<GameSocketService | null>(null);
+  const userIdRef = useRef<string | null>(userId);
+
+  // Keep ref in sync with the latest userId so the socket listener always
+  // dispatches with the current authenticated user without needing a re-subscribe.
+  useEffect(() => {
+    userIdRef.current = userId;
+  }, [userId]);
 
   useEffect(() => {
     const socket = new GameSocketService(buildWsUrl());
     socketRef.current = socket;
 
     const unsubEvents = socket.onEvent((event) => {
-      dispatch({ type: "WS_EVENT", event });
+      dispatch({ type: "WS_EVENT", event, userId: userIdRef.current });
     });
 
     const unsubState = socket.onConnectionState((connectionState) => {

@@ -28,13 +28,15 @@ vi.mock("@/services/gameSocket", () => ({
 }));
 
 // Mock auth so useGame can call useAuth()
+const mockUseAuth = vi.fn(() => ({
+  user: {
+    access_token: "test-token",
+    profile: { sub: "user-42" },
+  },
+}));
+
 vi.mock("@/auth/useAuth", () => ({
-  useAuth: () => ({
-    user: {
-      access_token: "test-token",
-      profile: { sub: "user-42" },
-    },
-  }),
+  useAuth: () => mockUseAuth(),
 }));
 
 // Mock REST game service
@@ -918,5 +920,151 @@ describe("useGame — round.state activeBet reconciliation on reconnect", () => 
       });
     });
     expect(result.current.activeBet).toBeNull();
+  });
+});
+
+describe("useGame — activeBet reconstruction from snapshot on page reload", () => {
+  beforeEach(() => {
+    mockEventListeners.clear();
+    mockStateListeners.clear();
+    vi.clearAllMocks();
+    // Restore default auth mock after any per-test overrides
+    mockUseAuth.mockImplementation(() => ({
+      user: { access_token: "test-token", profile: { sub: "user-42" } },
+    }));
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("reconstructs activeBet when page is reloaded mid-round with active bet in snapshot", () => {
+    // Fresh hook — no prior local state (simulates page reload)
+    const { result } = renderHook(() => useGame());
+    act(() => {
+      emitEvent({
+        type: "round.state",
+        roundId: "r-1",
+        phase: "IN_PROGRESS",
+        multiplier: 1.5,
+        bets: [{ betId: "b-user", playerId: "user-42", amountCents: "1000", status: "active" }],
+      });
+    });
+    expect(result.current.activeBet).not.toBeNull();
+    expect(result.current.activeBet?.betId).toBe("b-user");
+    expect(result.current.activeBet?.amountCents).toBe(1000n);
+    expect(result.current.activeBet?.cashedOut).toBe(false);
+  });
+
+  it("reconstructs activeBet with cashedOut=true when snapshot shows user cashed out on reload", () => {
+    const { result } = renderHook(() => useGame());
+    act(() => {
+      emitEvent({
+        type: "round.state",
+        roundId: "r-1",
+        phase: "IN_PROGRESS",
+        multiplier: 2.0,
+        bets: [{ betId: "b-user", playerId: "user-42", amountCents: "1000", status: "cashed_out" }],
+      });
+    });
+    expect(result.current.activeBet).not.toBeNull();
+    expect(result.current.activeBet?.betId).toBe("b-user");
+    expect(result.current.activeBet?.cashedOut).toBe(true);
+  });
+
+  it("does not reconstruct activeBet when snapshot shows user's bet as lost", () => {
+    const { result } = renderHook(() => useGame());
+    act(() => {
+      emitEvent({
+        type: "round.state",
+        roundId: "r-1",
+        phase: "CRASHED",
+        multiplier: 1.2,
+        bets: [{ betId: "b-user", playerId: "user-42", amountCents: "1000", status: "lost" }],
+      });
+    });
+    // Lost bets do not reconstruct activeBet — the round is over for the user
+    expect(result.current.activeBet).toBeNull();
+  });
+
+  it("does not reconstruct activeBet when snapshot contains only other players' bets", () => {
+    const { result } = renderHook(() => useGame());
+    act(() => {
+      emitEvent({
+        type: "round.state",
+        roundId: "r-1",
+        phase: "IN_PROGRESS",
+        multiplier: 1.5,
+        bets: [{ betId: "b-other", playerId: "other-player", amountCents: "500", status: "active" }],
+      });
+    });
+    expect(result.current.activeBet).toBeNull();
+  });
+
+  it("does not reconstruct activeBet when snapshot is empty (user has no bet in this round)", () => {
+    const { result } = renderHook(() => useGame());
+    act(() => {
+      emitEvent({
+        type: "round.state",
+        roundId: "r-1",
+        phase: "BETTING",
+        multiplier: 1.0,
+        bets: [],
+      });
+    });
+    expect(result.current.activeBet).toBeNull();
+  });
+
+  it("does not reconstruct activeBet when snapshot field is absent (old backend, no info)", () => {
+    const { result } = renderHook(() => useGame());
+    act(() => {
+      emitEvent({ type: "round.state", roundId: "r-1", phase: "IN_PROGRESS", multiplier: 1.3 });
+    });
+    expect(result.current.activeBet).toBeNull();
+  });
+
+  it("reconstruction is idempotent on repeated reconnects with the same snapshot", () => {
+    const { result } = renderHook(() => useGame());
+    const stateEvent = {
+      type: "round.state" as const,
+      roundId: "r-1",
+      phase: "IN_PROGRESS" as const,
+      multiplier: 1.5,
+      bets: [{ betId: "b-user", playerId: "user-42", amountCents: "1000", status: "active" as const }],
+    };
+    act(() => { emitEvent(stateEvent); });
+    act(() => { emitEvent(stateEvent); });
+    expect(result.current.activeBet?.betId).toBe("b-user");
+    expect(result.current.activeBet?.cashedOut).toBe(false);
+    expect(result.current.liveBets).toHaveLength(1);
+  });
+
+  it("does not reconstruct activeBet when user is unauthenticated (userId is null)", () => {
+    mockUseAuth.mockReturnValueOnce({ user: null } as unknown as ReturnType<typeof mockUseAuth>);
+    const { result } = renderHook(() => useGame());
+    act(() => {
+      emitEvent({
+        type: "round.state",
+        roundId: "r-1",
+        phase: "IN_PROGRESS",
+        multiplier: 1.5,
+        bets: [{ betId: "b-1", playerId: "user-42", amountCents: "1000", status: "active" }],
+      });
+    });
+    expect(result.current.activeBet).toBeNull();
+  });
+
+  it("reconstructs correct amountCents as bigint from snapshot string", () => {
+    const { result } = renderHook(() => useGame());
+    act(() => {
+      emitEvent({
+        type: "round.state",
+        roundId: "r-1",
+        phase: "IN_PROGRESS",
+        multiplier: 1.0,
+        bets: [{ betId: "b-user", playerId: "user-42", amountCents: "999999999", status: "active" }],
+      });
+    });
+    expect(result.current.activeBet?.amountCents).toBe(999999999n);
   });
 });
